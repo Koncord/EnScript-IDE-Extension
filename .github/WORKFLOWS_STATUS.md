@@ -6,9 +6,7 @@ This page provides an overview of all automated workflows for the EnScript IDE e
 
 | Workflow | Status | Triggers | Purpose |
 |----------|--------|----------|---------|
-| CI | [![CI](https://github.com/koncord/enscript-ide-extension/actions/workflows/ci.yml/badge.svg)](https://github.com/koncord/enscript-ide-extension/actions/workflows/ci.yml) | Push, PR | Multi-platform testing |
-| Code Quality | [![Code Quality](https://github.com/koncord/enscript-ide-extension/actions/workflows/code-quality.yml/badge.svg)](https://github.com/koncord/enscript-ide-extension/actions/workflows/code-quality.yml) | Push, PR, Weekly | Quality checks & coverage |
-| PR Validation | [![PR Validation](https://github.com/koncord/enscript-ide-extension/actions/workflows/pr-validation.yml/badge.svg)](https://github.com/koncord/enscript-ide-extension/actions/workflows/pr-validation.yml) | Pull Requests | PR-specific validation |
+| CI | [![CI](https://github.com/koncord/enscript-ide-extension/actions/workflows/ci.yml/badge.svg)](https://github.com/koncord/enscript-ide-extension/actions/workflows/ci.yml) | Push, PR | Linting, tests, build validation |
 | Release | [![Release](https://github.com/koncord/enscript-ide-extension/actions/workflows/release.yml/badge.svg)](https://github.com/koncord/enscript-ide-extension/actions/workflows/release.yml) | Version Tags | Packaging & publishing |
 
 ## 📊 Quick Links
@@ -25,26 +23,10 @@ This page provides an overview of all automated workflows for the EnScript IDE e
 **File:** `.github/workflows/ci.yml`
 
 Runs comprehensive tests on every push and PR:
-- 🖥️ **Platforms:** Ubuntu, Windows, macOS
+- 🖥️ **Platform:** Ubuntu (latest)
 - 📦 **Node.js:** 22.x
-- ✅ **Steps:** Lint → Type Check → Test → Build
-
-### Code Quality Workflow
-**File:** `.github/workflows/code-quality.yml`
-
-Weekly health checks plus immediate PR feedback:
-- 📈 **Coverage:** Test coverage reports
-- 🔒 **Security:** npm audit for vulnerabilities
-- 📦 **Dependencies:** Outdated package check
-- 💾 **Size:** Build output size monitoring
-
-### PR Validation Workflow
-**File:** `.github/workflows/pr-validation.yml`
-
-Validates all pull requests with extra checks:
-- ✅ **Full validation:** All quality checks
-- 💬 **Auto-comments:** Status updates on PRs
-- 🔍 **Change detection:** Verifies no uncommitted files
+- ✅ **Steps:** Lint → Type Check → Test (with coverage) → Build
+- � **Validation:** Checks for uncommitted changes after build
 
 ### Release Workflow
 **File:** `.github/workflows/release.yml`
@@ -59,7 +41,6 @@ Automated release process:
 
 | Workflow | Schedule | Purpose |
 |----------|----------|---------|
-| Code Quality | Weekly (Monday 9 AM UTC) | Regular health checks |
 | Dependabot | Weekly (Monday) | Dependency updates |
 
 ## 🛠️ Maintenance

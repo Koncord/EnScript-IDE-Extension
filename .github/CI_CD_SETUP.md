@@ -13,27 +13,16 @@ This project uses GitHub Actions for continuous integration and deployment. The 
 - Pull requests targeting these branches
 
 **Jobs:**
-- Runs on multiple platforms (Ubuntu, Windows, macOS)
+- Runs on Ubuntu (latest)
 - Tests against Node.js 22.x
 - Steps:
   - Linting (`npm run lint`)
   - Type checking (`npm run check-types`)
-  - Unit tests (`npm test`)
+  - Unit tests with coverage (`npm test -- --coverage`)
   - Production build (`npm run compile:prod`)
-  - Uploads build artifacts (Ubuntu + Node 22.x only)
+  - Checks for uncommitted changes after build
 
-### 2. PR Validation Workflow (`.github/workflows/pr-validation.yml`)
-
-**Triggers:**
-- Pull request events (opened, synchronized, reopened)
-
-**Jobs:**
-- Full validation suite
-- Coverage reporting
-- Checks for uncommitted changes after build
-- Automatic PR comments with validation status
-
-### 3. Release Workflow (`.github/workflows/release.yml`)
+### 2. Release Workflow (`.github/workflows/release.yml`)
 
 **Triggers:**
 - Git tags matching `v*.*.*` pattern (e.g., `v1.0.0`)
