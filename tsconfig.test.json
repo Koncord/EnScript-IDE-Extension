@@ -1,0 +1,23 @@
+{
+    "extends": "./tsconfig.base.json",
+    "compilerOptions": {
+        "baseUrl": ".",
+        "paths": {
+            "@server/*": ["./server/src/*"],
+            "@test/*": ["./test/*"],
+            "@fixtures/*": ["./test/fixtures/*"]
+        },
+        "moduleResolution": "node16",
+        "types": ["node", "jest"],
+        "noImplicitAny": false,
+        "strict": false
+    },
+    "include": [
+        "test/**/*",
+        "server/src/**/*"
+    ],
+    "exclude": [
+        "node_modules",
+        "out"
+    ]
+}

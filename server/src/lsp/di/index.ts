@@ -1,0 +1,1 @@
+export {configureServerContainer} from './container';

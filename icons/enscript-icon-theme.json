@@ -1,0 +1,47 @@
+{
+  "iconDefinitions": {
+    "enscript-file": {
+      "iconPath": "./enscript-file.svg"
+    },
+    "enscript-project": {
+      "iconPath": "./enscript-project.svg"
+    },
+    "enscript-config": {
+      "iconPath": "./enscript-config.svg"
+    }
+  },
+  "fileExtensions": {
+    "c": "enscript-file",
+    "cproj": "enscript-project"
+  },
+  "fileNames": {
+    "config.cpp": "enscript-config"
+  },
+  "languageIds": {
+    "enscript": "enscript-file"
+  },
+  "light": {
+    "fileExtensions": {
+      "c": "enscript-file",
+      "cproj": "enscript-project"
+    },
+    "fileNames": {
+      "config.cpp": "enscript-config"
+    },
+    "languageIds": {
+      "enscript": "enscript-file"
+    }
+  },
+  "highContrast": {
+    "fileExtensions": {
+      "c": "enscript-file",
+      "cproj": "enscript-project"
+    },
+    "fileNames": {
+      "config.cpp": "enscript-config"
+    },
+    "languageIds": {
+      "enscript": "enscript-file"
+    }
+  }
+}

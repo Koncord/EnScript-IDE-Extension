@@ -1,0 +1,401 @@
+{
+    "name": "enscript-ide",
+    "displayName": "EnScript IDE",
+    "description": "EnScript language support for DayZ game.",
+    "version": "0.6.0",
+    "publisher": "koncord",
+    "icon": "icons/logo.png",
+    "type": "commonjs",
+    "engines": {
+        "vscode": "^1.105.0"
+    },
+    "categories": [
+        "Programming Languages",
+        "Linters"
+    ],
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/koncord/enscript-ide-extension"
+    },
+    "scripts": {
+        "compile": "npm run check-types && node esbuild.js",
+        "compile:prod": "npm run check-types && node esbuild.js --production",
+        "check-types": "tsc --noEmit -p . && tsc --noEmit -p server",
+        "watch": "node esbuild.js --watch",
+        "lint": "eslint server/src --ext .ts",
+        "lint:fix": "eslint server/src --ext .ts --fix",
+        "test": "jest",
+        "clean": "rimraf --glob out server/out **/*.tsbuildinfo",
+        "package": "npm run compile:prod && vsce package",
+        "publish": "npm run compile:prod && vsce publish"
+    },
+    "dependencies": {
+        "inversify": "^7.10.3",
+        "marked": "^16.4.1",
+        "reflect-metadata": "^0.2.2",
+        "tslib": "^2.8.1",
+        "vscode-languageclient": "^9.0.1",
+        "vscode-languageserver": "^9.0.1",
+        "vscode-languageserver-textdocument": "^1.0.12",
+        "vscode-uri": "^3.1.0"
+    },
+    "devDependencies": {
+        "@eslint/js": "^9.38.0",
+        "@types/jest": "^30.0.0",
+        "@types/node": "^24.8.1",
+        "@types/vscode": "^1.105.0",
+        "@typescript-eslint/eslint-plugin": "^8.46.0",
+        "@typescript-eslint/parser": "^8.46.0",
+        "esbuild": "^0.25.11",
+        "eslint": "^9.38.0",
+        "globals": "^16.4.0",
+        "jest": "^30.2.0",
+        "jiti": "^2.6.1",
+        "rimraf": "^6.0.1",
+        "ts-jest": "^29.4.5",
+        "typescript": "^5.9.3",
+        "typescript-eslint": "^8.46.0"
+    },
+    "activationEvents": [],
+    "main": "./out/extension.js",
+    "contributes": {
+        "languages": [
+            {
+                "id": "enscript",
+                "aliases": [
+                    "Enscript",
+                    "enscript"
+                ],
+                "extensions": [
+                    ".c"
+                ],
+                "configuration": "./language-configuration.json"
+            },
+            {
+                "id": "rapfile",
+                "aliases": [
+                    "RapFile",
+                    "rapfile"
+                ],
+                "extensions": [
+                    ".cpp",
+                    ".hpp"
+                ],
+                "configuration": "./language-configuration.json"
+            }
+        ],
+        "grammars": [
+            {
+                "language": "enscript",
+                "scopeName": "source.enscript",
+                "path": "./syntaxes/enscript.tmLanguage.json"
+            },
+            {
+                "language": "rapfile",
+                "scopeName": "source.cpp",
+                "path": "./syntaxes/rapfile.tmLanguage.json"
+            }
+        ],
+        "commands": [
+            {
+                "command": "enscript.restartServer",
+                "title": "Enscript: Restart Language Server"
+            },
+            {
+                "command": "enscript.refreshIndex",
+                "title": "Enscript: Refresh File Index"
+            },
+            {
+                "command": "enscript.dumpDiagnostics",
+                "title": "Enscript: Dump Diagnostics"
+            },
+            {
+                "command": "enscript.dumpClasses",
+                "title": "Enscript: Dump Indexed Classes"
+            },
+            {
+                "command": "enscript.refreshProjectDependencies",
+                "title": "Enscript: Refresh Project Dependencies"
+            },
+            {
+                "command": "enscript.showDependencyGraph",
+                "title": "Enscript: Show Dependency Graph"
+            },
+            {
+                "command": "enscript.configureDayZTools",
+                "title": "Enscript: Configure DayZ Tools"
+            },
+            {
+                "command": "enscript.showDocumentation.client",
+                "title": "Enscript: Show Rule Documentation"
+            },
+            {
+                "command": "enscript.addIncludePath",
+                "title": "Enscript: Add Include Path",
+                "icon": "$(add)"
+            },
+            {
+                "command": "enscript.refreshIncludePaths",
+                "title": "Enscript: Refresh Include Paths",
+                "icon": "$(refresh)"
+            },
+            {
+                "command": "enscript.openIncludePath",
+                "title": "Open in Explorer"
+            },
+            {
+                "command": "enscript.copyIncludePath",
+                "title": "Copy Path"
+            }
+        ],
+        "views": {
+            "explorer": [
+                {
+                    "id": "enscriptIncludePaths",
+                    "name": "Enscript Include Paths",
+                    "icon": "icons/logo.svg",
+                    "contextualTitle": "Enscript Include Paths"
+                }
+            ]
+        },
+        "menus": {
+            "view/title": [
+                {
+                    "command": "enscript.addIncludePath",
+                    "when": "view == enscriptIncludePaths",
+                    "group": "navigation@1"
+                },
+                {
+                    "command": "enscript.refreshIncludePaths",
+                    "when": "view == enscriptIncludePaths",
+                    "group": "navigation@2"
+                }
+            ],
+            "view/item/context": [
+                {
+                    "command": "enscript.openIncludePath",
+                    "when": "view == enscriptIncludePaths && viewItem =~ /includePathDirectory|includePathRoot/",
+                    "group": "navigation"
+                },
+                {
+                    "command": "enscript.copyIncludePath",
+                    "when": "view == enscriptIncludePaths && viewItem =~ /includePathDirectory|includePathRoot|includePathFile/",
+                    "group": "5_cutcopypaste"
+                }
+            ]
+        },
+        "configuration": {
+            "title": "Enfusion Script",
+            "properties": {
+                "enscript.includePaths": {
+                    "type": "array",
+                    "default": [],
+                    "description": "List of paths to index for base game data (e.g. P:\\scripts\\ folder)",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "enscript.preprocessorDefinitions": {
+                    "type": "array",
+                    "default": [],
+                    "description": "Preprocessor symbols to define (e.g. DEBUG, GAME_TEMPLATE, FEATURE_FLAG)",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "enscript.modRoots": {
+                    "type": "array",
+                    "default": [
+                        "P:\\"
+                    ],
+                    "description": "Root directories to search for mod dependencies (e.g. P:\\ for DayZ development)",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "enscript.diagnostics.enabled": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Enable diagnostic checking for Enscript files"
+                },
+                "enscript.diagnostics.maxDiagnosticsPerFile": {
+                    "type": "number",
+                    "default": 1000,
+                    "minimum": 0,
+                    "maximum": 10000,
+                    "description": "Maximum number of diagnostics to generate per file"
+                },
+                "enscript.diagnostics.enableTiming": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Enable performance timing for diagnostic rules"
+                },
+                "enscript.diagnostics.enabledCategories": {
+                    "type": "array",
+                    "default": [
+                        "syntax",
+                        "semantic",
+                        "type",
+                        "style"
+                    ],
+                    "description": "Categories of diagnostics to enable",
+                    "items": {
+                        "type": "string",
+                        "enum": [
+                            "syntax",
+                            "semantic",
+                            "type",
+                            "style",
+                            "performance"
+                        ]
+                    }
+                },
+                "enscript.diagnostics.globalSeverityOverride": {
+                    "type": "string",
+                    "enum": [
+                        "error",
+                        "warning",
+                        "info",
+                        "hint"
+                    ],
+                    "description": "Override severity for all diagnostic rules (optional)"
+                },
+                "enscript.diagnostics.excludePatterns": {
+                    "type": "array",
+                    "default": [],
+                    "description": "File patterns to exclude from diagnostic checking",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "enscript.diagnostics.lenientStubValidation": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Be lenient when validating incomplete class stubs"
+                },
+                "enscript.diagnostics.enableExternalTabDiagnostics": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Enable diagnostics for external files when opened in a preview tab (Ctrl+Click, unpinned tab)"
+                },
+                "enscript.diagnostics.enableExternalPinnedTabDiagnostics": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Enable diagnostics for external files when opened in a pinned tab (double-click or pin action)"
+                },
+                "enscript.diagnostics.rules": {
+                    "type": "object",
+                    "default": {
+                        "unused-typedef": {
+                            "enabled": true,
+                            "severity": "warning"
+                        },
+                        "undeclared-function": {
+                            "enabled": true,
+                            "severity": "error"
+                        },
+                        "undeclared-method": {
+                            "enabled": true,
+                            "severity": "error"
+                        }
+                    },
+                    "description": "Configuration for individual diagnostic rules",
+                    "properties": {
+                        "unused-typedef": {
+                            "type": "object",
+                            "properties": {
+                                "enabled": {
+                                    "type": "boolean"
+                                },
+                                "severity": {
+                                    "type": "string",
+                                    "enum": [
+                                        "error",
+                                        "warning",
+                                        "info",
+                                        "hint"
+                                    ]
+                                }
+                            }
+                        },
+                        "undeclared-function": {
+                            "type": "object",
+                            "properties": {
+                                "enabled": {
+                                    "type": "boolean"
+                                },
+                                "severity": {
+                                    "type": "string",
+                                    "enum": [
+                                        "error",
+                                        "warning",
+                                        "info",
+                                        "hint"
+                                    ]
+                                }
+                            }
+                        },
+                        "undeclared-method": {
+                            "type": "object",
+                            "properties": {
+                                "enabled": {
+                                    "type": "boolean"
+                                },
+                                "severity": {
+                                    "type": "string",
+                                    "enum": [
+                                        "error",
+                                        "warning",
+                                        "info",
+                                        "hint"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "additionalProperties": {
+                        "type": "object",
+                        "properties": {
+                            "enabled": {
+                                "type": "boolean"
+                            },
+                            "severity": {
+                                "type": "string",
+                                "enum": [
+                                    "error",
+                                    "warning",
+                                    "info",
+                                    "hint"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "enscript.logging.level": {
+                    "type": "string",
+                    "enum": [
+                        "error",
+                        "warn",
+                        "info",
+                        "debug"
+                    ],
+                    "default": "info",
+                    "description": "Set the verbosity level for language server logging",
+                    "enumDescriptions": [
+                        "Only show errors",
+                        "Show warnings and errors",
+                        "Show info, warnings, and errors (default)",
+                        "Show all debug output including verbose diagnostics"
+                    ]
+                }
+            }
+        },
+        "iconThemes": [
+            {
+                "id": "enscript-icons",
+                "label": "Enscript IDE File Icons",
+                "path": "./icons/enscript-icon-theme.json"
+            }
+        ]
+    }
+}

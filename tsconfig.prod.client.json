@@ -1,0 +1,11 @@
+{
+    "extends": "./tsconfig.prod.json",
+    "compilerOptions": {
+        "outDir": "out",
+        "rootDir": "src",
+        "composite": true
+    },
+    "include": [
+        "src"
+    ]
+}

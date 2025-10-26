@@ -1,0 +1,13 @@
+{
+    "extends": "./tsconfig.base.json",
+    "compilerOptions": {
+        "removeComments": true,
+        "importHelpers": true,
+        "downlevelIteration": true,
+        "inlineSourceMap": false,
+        "inlineSources": false,
+        "sourceMap": false,
+        "noEmitOnError": true,
+        "pretty": false
+    }
+}

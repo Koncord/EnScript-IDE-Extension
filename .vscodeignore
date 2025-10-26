@@ -1,0 +1,45 @@
+# Source files
+src/**
+server/src/**
+*.ts
+**/*.d.ts
+**/*.map
+*.c
+
+# Test files
+test/**
+test-*.js
+*.test.ts
+*.test.js
+
+# Configuration files
+tsconfig*.json
+**/tsconfig*.json
+jest.config.cjs
+eslint.config.ts
+.eslintrc*
+
+# Build artifacts
+tsconfig*.tsbuildinfo
+server/tsconfig*.tsbuildinfo
+
+# Development files
+.vscode/**
+.vscode-test/**
+.gitignore
+.git/**
+
+# Node modules - esbuild bundles all dependencies
+node_modules/**
+
+# Documentation (keep LICENSE, optionally exclude README for smaller package)
+# README.md
+
+# Other development files
+*.map
+.editorconfig
+.prettierrc*
+out/cli.js
+
+*.md
+!README.md

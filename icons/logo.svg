@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <defs>
+    <style>
+      .a, .b {
+        fill: #fff;
+      }
+
+      .c {
+        fill: #009fe3;
+      }
+
+      .d {
+        font-family: JetBrainsMono-ExtraBold, 'JetBrains Mono';
+      }
+
+      .d, .e {
+        font-weight: 700;
+      }
+
+      .b {
+        font-size: 57.31px;
+      }
+
+      .f {
+        font-family: JetBrainsMono-Regular, 'JetBrains Mono';
+      }
+
+      .e {
+        font-family: JetBrainsMono-Bold, 'JetBrains Mono';
+        letter-spacing: 0em;
+      }
+    </style>
+  </defs>
+  <path class="c" d="m16,0h240v240c0,8.83-7.17,16-16,16H0V16C0,7.17,7.17,0,16,0Z"/>
+  <text class="b" transform="translate(28 205.48) scale(.97 1)"><tspan class="d" x="0" y="0">En</tspan><tspan class="e" x="68.77" y="0"> </tspan><tspan class="f" x="103.16" y="0">IDE</tspan></text>
+  <g>
+    <polygon class="a" points="89.51 106.99 32.44 49.92 89.51 49.92 89.51 106.99"/>
+    <polygon class="a" points="170.77 109.16 99.2 109.16 99.2 37.59 170.77 109.16"/>
+    <polygon class="a" points="223.56 146.72 223.56 49.92 126.75 49.92 223.56 146.72"/>
+  </g>
+</svg>
