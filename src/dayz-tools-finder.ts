@@ -5,6 +5,7 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 
 const execAsync = promisify(exec);
+const DAYZ_TOOLS_APPID = '830640';
 
 /**
  * Parse VDF (Valve Data Format) file
@@ -101,7 +102,7 @@ export async function findDayZToolsPath(): Promise<string | null> {
             const folder = libraryFolders[key] as Record<string, unknown>;
             if (typeof folder === 'object' && folder.apps) {
                 const apps = folder.apps as Record<string, unknown>;
-                if ('830640' in apps && typeof folder.path === 'string') {
+                if (DAYZ_TOOLS_APPID in apps && typeof folder.path === 'string') {
                     const libraryPath = folder.path.replace(/\\\\/g, '\\');
                     const dayZToolsPath = path.join(libraryPath, 'steamapps', 'common', 'DayZ Tools');
 
@@ -175,7 +176,7 @@ export async function configureDayZTools(): Promise<boolean> {
             );
 
             if (result === 'Open Steam Store') {
-                vscode.env.openExternal(vscode.Uri.parse('steam://store/830640'));
+                vscode.env.openExternal(vscode.Uri.parse(`steam://store/${DAYZ_TOOLS_APPID}`));
             }
 
             return false;
