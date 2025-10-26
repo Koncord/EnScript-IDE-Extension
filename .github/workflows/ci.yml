@@ -8,20 +8,16 @@ on:
 
 jobs:
   build:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-        node-version: [20.x, 22.x]
+    runs-on: ubuntu-latest
 
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Setup Node.js ${{ matrix.node-version }}
+    - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: ${{ matrix.node-version }}
+        node-version: '22.x'
         cache: 'npm'
 
     - name: Install dependencies
@@ -34,17 +30,15 @@ jobs:
       run: npm run check-types
 
     - name: Run tests
-      run: npm test
+      run: npm test -- --coverage
 
     - name: Build extension
       run: npm run compile:prod
 
-    - name: Upload build artifacts
-      if: matrix.os == 'ubuntu-latest' && matrix.node-version == '22.x'
-      uses: actions/upload-artifact@v4
-      with:
-        name: build-output
-        path: |
-          out/
-          server/out/
-        retention-days: 7
+    - name: Check for uncommitted changes
+      run: |
+        if [ -n "$(git status --porcelain)" ]; then
+          echo "Error: There are uncommitted changes after build"
+          git status
+          exit 1
+        fi
