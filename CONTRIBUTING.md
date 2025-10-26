@@ -173,9 +173,58 @@ Use the [Feature Request template](.github/ISSUE_TEMPLATE/feature_request.yml) a
 - Give constructive feedback
 - Focus on what's best for the community
 
+# License and Contributor License Agreement (CLA)
+
 ## License
 
-By contributing, you agree that your contributions will be licensed under the same license as the project.
+This project is currently licensed under the **GNU General Public License v3.0 (GPL-3.0)**.  
+See the [LICENSE](LICENSE) file for full terms.
+
+All contributions to this repository are governed by the Contributor License Agreement (CLA) below, which grants the project owner the right to relicense the project under different or additional terms in the future.
+
+---
+
+## Contributor License Agreement (CLA)
+
+By submitting a pull request, issue, patch, or any other contribution to this repository, you agree to be bound by this Contributor License Agreement.
+
+### 1. Grant of Copyright License
+You grant to **Stanislav "Koncord" Zhukov** (the "Project Owner") a perpetual, worldwide, non-exclusive, no-charge, royalty-free, irrevocable license to:
+- reproduce,
+- prepare derivative works of,
+- publicly display,
+- publicly perform,
+- sublicense, and
+- distribute  
+your contributions and derivative works thereof, in source or binary form.
+
+### 2. Grant of Patent License
+You grant to the Project Owner a perpetual, worldwide, non-exclusive, no-charge, royalty-free, irrevocable (except as stated in this section) patent license to make, have made, use, offer to sell, sell, import, and otherwise transfer your contribution, where such license applies only to those patent claims licensable by you that are necessarily infringed by your contribution or its combination with the project.
+
+### 3. Right to Relicense
+You acknowledge and agree that the Project Owner has the **exclusive right to relicense** the project, including your contributions, under any license terms — including but not limited to future versions of the GPL or proprietary/commercial licenses — at their sole discretion.  
+This right applies without any obligation to notify or seek further consent from contributors.
+
+### 4. Ownership and Original Work
+You retain ownership of the copyright in your contributions.  
+This agreement **does not transfer ownership** to the Project Owner, but grants them all necessary rights to use, distribute, and relicense your contributions as described above.
+
+You further represent that:
+- each of your contributions is your original creation, and  
+- you have the legal right to grant the above licenses.  
+
+If your contribution includes third-party code, you agree to clearly identify it and confirm that it is compatible with GPL-3.0 or a license that permits its inclusion under these terms.
+
+### 5. No Warranty
+You provide your contributions on an **“AS IS”** basis, without warranties or conditions of any kind, either express or implied, including without limitation any warranties or conditions of title, non-infringement, merchantability, or fitness for a particular purpose.
+
+### 6. Retention of Rights
+You retain the right to use, copy, modify, and distribute your contributions independently of this project for any purpose, without restriction.
+
+---
+
+**By contributing to this project, you confirm that you have read and agree to the terms of this Contributor License Agreement.**
+
 
 ---
 
