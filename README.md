@@ -1,5 +1,8 @@
 # EnScript IDE by Alpine Team
 
+[![CI](https://github.com/koncord/enscript-ide-extension/actions/workflows/ci.yml/badge.svg)](https://github.com/koncord/enscript-ide-extension/actions/workflows/ci.yml)
+[![Code Quality](https://github.com/koncord/enscript-ide-extension/actions/workflows/code-quality.yml/badge.svg)](https://github.com/koncord/enscript-ide-extension/actions/workflows/code-quality.yml)
+
 Inspired by yuvalno's [Enfusion Script extension](https://github.com/yuvalino/enscript)
 
 **Note:** Currently only DayZ game supported.

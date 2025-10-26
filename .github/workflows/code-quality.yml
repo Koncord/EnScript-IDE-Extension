@@ -1,0 +1,51 @@
+name: Code Quality
+
+on:
+  push:
+    branches: [ main, master, develop ]
+  pull_request:
+    branches: [ main, master, develop ]
+  schedule:
+    # Run every Monday at 9 AM UTC
+    - cron: '0 9 * * 1'
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '22.x'
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Run linter
+      run: npm run lint
+
+    - name: Run type checking
+      run: npm run check-types
+
+    - name: Run tests with coverage
+      run: npm test -- --coverage --coverageReporters=text --coverageReporters=lcov
+
+    - name: Check for security vulnerabilities
+      run: npm audit --audit-level=moderate
+
+    - name: Check for outdated dependencies
+      run: npm outdated || true
+
+    - name: Build size check
+      run: |
+        npm run compile:prod
+        echo "Build output size:"
+        du -sh out/
+        du -sh server/out/

@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 💬 Discussions
+    url: https://github.com/koncord/enscript-ide-extension/discussions
+    about: Ask questions and discuss ideas with the community
+  - name: 📖 Documentation
+    url: https://github.com/koncord/enscript-ide-extension/blob/main/README.md
+    about: Read the documentation for usage and setup instructions
