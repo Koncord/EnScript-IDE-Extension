@@ -219,9 +219,20 @@ export class TypeResolver implements ITypeResolver {
     resolveObjectType(objectName: string, doc: TextDocument, position?: Position): string | null {
         Logger.debug(`🔍 TypeResolver.resolveObjectType("${objectName}") called`);
 
-        // Create cache key including position for context-sensitive resolution
-        const positionKey = position ? `${position.line}:${position.character}` : 'global';
-        const cacheKey = `${doc.uri}|${objectName}|${positionKey}`;
+        // Create a more stable cache key that considers scope context rather than exact position
+        let cacheKey: string;
+        if (position) {
+            // Try to determine scope context for more stable caching
+            const ast = this.ensureDocumentParsed(doc);
+            const containingFunction = this.findContainingFunctionAtPosition(ast, position);
+            const containingClass = this.findClassAtPosition(ast, position);
+            
+            // Create a stable scope-based key
+            const scopeKey = this.createScopeBasedCacheKey(containingClass, containingFunction, position);
+            cacheKey = `${doc.uri}|${objectName}|${scopeKey}`;
+        } else {
+            cacheKey = `${doc.uri}|${objectName}|global`;
+        }
 
         // Check cache first for significant performance improvement
         if (this.typeCache.has(cacheKey)) {
@@ -262,7 +273,7 @@ export class TypeResolver implements ITypeResolver {
                 for (const [uri, ast] of this.docCache.entries()) {
                     if (uri === currentUri) continue; // Already checked
 
-                    result = this.searchForVariableType(objectName, ast, uri, true, doc);
+                    result = this.searchForVariableType(objectName, ast, uri, true, doc, position);
                     if (result) {
                         break; // Found it, no need to continue searching
                     }
@@ -406,8 +417,20 @@ export class TypeResolver implements ITypeResolver {
         doc?: TextDocument,
         position?: Position
     ): string | null {
-        // Create a cache key for this specific search
-        const searchCacheKey = `search:${objectName}:${uri}:${globalOnly}:${position?.line}:${position?.character}`;
+        // Create a more stable cache key for this specific search
+        let searchCacheKey: string;
+        if (globalOnly) {
+            searchCacheKey = `search:${objectName}:${uri}:global`;
+        } else if (position) {
+            // Use scope-based key for local searches
+            const containingFunction = this.findContainingFunctionAtPosition(ast, position);
+            const containingClass = this.findClassAtPosition(ast, position);
+            const scopeKey = this.createScopeBasedCacheKey(containingClass, containingFunction, position);
+            searchCacheKey = `search:${objectName}:${uri}:${scopeKey}`;
+        } else {
+            searchCacheKey = `search:${objectName}:${uri}:nopos`;
+        }
+        
         if (this.typeCache.has(searchCacheKey)) {
             return this.typeCache.get(searchCacheKey)!;
         }
@@ -428,7 +451,9 @@ export class TypeResolver implements ITypeResolver {
                 return varType;
             }
 
-            if (globalOnly) continue; // Skip local scopes if searching globally
+            if (globalOnly && !position) {
+                continue; // Skip local scopes if searching globally without position context
+            }
 
             // Check inside class members and methods
             if (isClass(node)) {
@@ -472,7 +497,9 @@ export class TypeResolver implements ITypeResolver {
         // Check class members
         for (const member of classNode.members || []) {
             if (isVarDecl(member) && member.name === objectName) {
-                Logger.debug(`🎯 TypeResolver: Found class member "${objectName}"`);
+                if (this.enableDetailedLogging) {
+                    Logger.debug(`🎯 TypeResolver: Found class member "${objectName}"`);
+                }
                 return this.resolveVariableType(member, doc);
             }
 
@@ -480,11 +507,18 @@ export class TypeResolver implements ITypeResolver {
             if (isMethod(member) && position) {
                 const method = member as MethodDeclNode;
                 const isInMethod = isPositionInNode(position, method);
+                if (this.enableDetailedLogging) {
+                    Logger.debug(`🔍 TypeResolver: Checking method "${method.name}" for position ${position.line}:${position.character}`);
+                    Logger.debug(`   Method bounds: ${method.start.line}:${method.start.character} - ${method.end.line}:${method.end.character}`);
+                    Logger.debug(`   Position in method: ${isInMethod}`);
+                }
                 if (isInMethod) {
                     const methodType = this.searchInFunction(objectName, method, position, doc);
                     if (methodType) {
                         return methodType;
                     }
+                } else if (this.enableDetailedLogging) {
+                    Logger.debug(`   ❌ Position ${position.line}:${position.character} not in method bounds`);
                 }
             }
         }
@@ -524,7 +558,9 @@ export class TypeResolver implements ITypeResolver {
                             continue; // Skip if not yet declared
                         }
                     }
-                    Logger.debug(`🎯 TypeResolver: Found local variable "${objectName}" in funcNode.locals`);
+                    if (this.enableDetailedLogging) {
+                        Logger.debug(`🎯 TypeResolver: Found local variable "${objectName}" in funcNode.locals`);
+                    }
                     const result = this.resolveVariableType(local, doc);
                     return result;
                 }
@@ -992,6 +1028,61 @@ export class TypeResolver implements ITypeResolver {
         }
         
         return null;
+    }
+
+    /**
+     * Find the containing function at a specific position
+     */
+    private findContainingFunctionAtPosition(ast: FileNode, position: Position): FunctionDeclNode | MethodDeclNode | null {
+        // First check for global functions
+        for (const node of ast.body) {
+            if (isFunction(node)) {
+                if (isPositionInNode(position, node)) {
+                    return node;
+                }
+            }
+            // Then check for methods within classes
+            if (isClass(node)) {
+                for (const member of node.members || []) {
+                    if (isMethod(member)) {
+                        if (isPositionInNode(position, member)) {
+                            return member;
+                        }
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Create a stable cache key based on scope context rather than exact position
+     */
+    private createScopeBasedCacheKey(
+        containingClass: ClassDeclNode | null, 
+        containingFunction: FunctionDeclNode | MethodDeclNode | null,
+        position: Position
+    ): string {
+        // For global scope
+        if (!containingClass && !containingFunction) {
+            return 'global';
+        }
+        
+        // For class scope but outside method
+        if (containingClass && !containingFunction) {
+            return `class:${containingClass.name}`;
+        }
+        
+        // For function/method scope - use function name and class if applicable
+        if (containingFunction) {
+            const functionId = containingClass 
+                ? `method:${containingClass.name}.${containingFunction.name}`
+                : `function:${containingFunction.name}`;
+            return functionId;
+        }
+        
+        // Fallback to position-based key
+        return `pos:${position.line}:${position.character}`;
     }
 
     /**
