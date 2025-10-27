@@ -638,5 +638,29 @@ int valid;`;
             expect(secondDecl.start.line).toBe(1);
         });
     });
-});
 
+    describe('Error Handling', () => {
+        it('should generate diagnostic for invalid type argument syntax', () => {
+            const code = `ref array<int> g_array = new <int>();`;
+            const { diagnostics } = parseCode(code);
+
+            // Should have at least one error diagnostic
+            const errors = diagnostics.filter(d => d.severity === 1); // 1 = Error
+            expect(errors.length).toBeGreaterThan(0);
+            
+            // Check that the error mentions the problem with the identifier
+            const errorMessages = errors.map(e => e.message).join(' ');
+            expect(errorMessages).toMatch(/identifier/i);
+        });
+
+        it('should handle malformed generic type arguments gracefully', () => {
+            const code = `array<<int>> arr;`;
+            const { file, diagnostics } = parseCode(code);
+
+            // Should generate an error but not crash
+            expect(file).toBeDefined();
+            const errors = diagnostics.filter(d => d.severity === 1);
+            expect(errors.length).toBeGreaterThan(0);
+        });
+    });
+});

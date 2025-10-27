@@ -1061,8 +1061,14 @@ export class Parser {
             try {
                 // Handle modifiers in type arguments (like "ref string")
                 args.push(this.parseTypeInGeneric());
-            } catch {
-                // If parsing a type argument fails, try to recover
+            } catch (error) {
+                // If parsing a type argument fails, record the error and try to recover
+                if (error instanceof ParseError) {
+                    if (!this.shouldSuppressError(error)) {
+                        this.parseErrors.push(error);
+                    }
+                }
+                
                 // Skip to next comma or closing bracket
                 while (!this.tokenStream.eof() &&
                     this.tokenStream.peek().value !== ',' &&

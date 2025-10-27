@@ -29,6 +29,7 @@ import {
     AssignmentOperator,
     LiteralType
 } from '../ast/node-types';
+import { ParseError } from '../ast/errors';
 import { ExpressionRecoveryStrategy } from '../recovery/expression-recovery';
 import { RecoveryAction } from '../recovery/recovery-actions';
 
@@ -353,7 +354,13 @@ export class ExpressionParser {
 
         // Provide specific error messages based on keyword type using recovery strategy
         const errorMessage = this.recoveryStrategy.generateExpressionContextError(token);
-        throw new Error(errorMessage);
+        const errPos = this.document.positionAt(token.start);
+        throw new ParseError(
+            this.document.uri,
+            errPos.line + 1,
+            errPos.character + 1,
+            errorMessage
+        );
     }
 
     /**
@@ -474,7 +481,8 @@ export class ExpressionParser {
         if (typeToken.kind !== TokenKind.Identifier && typeToken.kind !== TokenKind.KeywordType) {
             const recovery = this.recoveryStrategy.handleInvalidCastType(typeToken);
             if (recovery.action === RecoveryAction.ThrowError) {
-                throw new Error(recovery.message!);
+                const pos = this.document.positionAt(typeToken.start);
+                throw new ParseError(this.document.uri, pos.line + 1, pos.character + 1, recovery.message!);
             }
         }
 
@@ -596,7 +604,13 @@ export class ExpressionParser {
 
         if (token.kind !== TokenKind.Identifier) {
             const errorMessage = this.recoveryStrategy.generateIdentifierError(token);
-            throw new Error(errorMessage);
+            const pos = this.document.positionAt(token.start);
+            throw new ParseError(
+                this.document.uri,
+                pos.line + 1,
+                pos.character + 1,
+                errorMessage
+            );
         }
 
         return {
@@ -686,7 +700,8 @@ export class ExpressionParser {
             } else {
                 const recovery = this.recoveryStrategy.handleGenericTypeError('type name', typeToken);
                 if (recovery.action === RecoveryAction.ThrowError) {
-                    throw new Error(recovery.message!);
+                    const pos = this.document.positionAt(typeToken.start);
+                    throw new ParseError(this.document.uri, pos.line + 1, pos.character + 1, recovery.message!);
                 }
             }
 
@@ -697,7 +712,8 @@ export class ExpressionParser {
                 const nextToken = this.tokenStream.peek();
                 const recovery = this.recoveryStrategy.handleGenericTypeError("',' or '>'", nextToken);
                 if (recovery.action === RecoveryAction.ThrowError) {
-                    throw new Error(recovery.message!);
+                    const pos = this.document.positionAt(nextToken.start);
+                    throw new ParseError(this.document.uri, pos.line + 1, pos.character + 1, recovery.message!);
                 }
             }
         }
@@ -751,7 +767,8 @@ export class ExpressionParser {
                 } else {
                     const recovery = this.recoveryStrategy.handleUnexpectedLiteral(token);
                     if (recovery.action === RecoveryAction.ThrowError) {
-                        throw new Error(recovery.message!);
+                        const pos = this.document.positionAt(token.start);
+                        throw new ParseError(this.document.uri, pos.line + 1, pos.character + 1, recovery.message!);
                     }
                     // Fallback values if recovery doesn't throw
                     value = null;
@@ -766,7 +783,8 @@ export class ExpressionParser {
             default:
                 const recovery = this.recoveryStrategy.handleUnexpectedLiteral(token);
                 if (recovery.action === RecoveryAction.ThrowError) {
-                    throw new Error(recovery.message!);
+                    const pos = this.document.positionAt(token.start);
+                    throw new ParseError(this.document.uri, pos.line + 1, pos.character + 1, recovery.message!);
                 }
                 // Fallback values if recovery doesn't throw
                 value = null;
@@ -999,7 +1017,8 @@ export class ExpressionParser {
                     end: token.start + 1
                 };
             } else if (recovery.action === RecoveryAction.ThrowError) {
-                throw new Error(recovery.message!);
+                const pos = this.document.positionAt(token.start);
+                throw new ParseError(this.document.uri, pos.line + 1, pos.character + 1, recovery.message!);
             }
         }
         
