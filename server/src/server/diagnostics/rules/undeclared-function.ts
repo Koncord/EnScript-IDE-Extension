@@ -211,17 +211,18 @@ export class UndeclaredFunctionRule extends UndeclaredEntityRule {
                 );
 
                 // Check for instance methods first (can be called without 'this.')
-                const foundAsInstanceMethod = await PerformanceTimer.time('UndeclaredFunction.findMemberInClassHierarchy.instance', async () =>
+                const instanceMethodResult = await PerformanceTimer.time('UndeclaredFunction.findMemberInClassHierarchy.instance', async () =>
                     await this.findMemberInClassHierarchy(
                         currentClassName,
                         functionName,
                         false, // instance methods
                         context,
                         true // allow private since we're inside the class
-                    ) !== null
+                    )
                 );
 
-                if (foundAsInstanceMethod) {
+                if (instanceMethodResult && !instanceMethodResult.staticMismatch) {
+                    // Found an actual instance method (not a static method mismatch)
                     // Instance methods cannot be called from static methods
                     if (isInStaticMethod) {
                         return { isDeclared: false, isInstanceMethodInStaticContext: true };
@@ -230,17 +231,17 @@ export class UndeclaredFunctionRule extends UndeclaredEntityRule {
                 }
 
                 // Also check for static methods (can be called without class name prefix from within same class)
-                const foundAsStaticMethod = await PerformanceTimer.time('UndeclaredFunction.findMemberInClassHierarchy.static', async () =>
+                const staticMethodResult = await PerformanceTimer.time('UndeclaredFunction.findMemberInClassHierarchy.static', async () =>
                     await this.findMemberInClassHierarchy(
                         currentClassName,
                         functionName,
                         true, // static methods
                         context,
                         true // allow private since we're inside the class
-                    ) !== null
+                    )
                 );
 
-                if (foundAsStaticMethod) {
+                if (staticMethodResult && !staticMethodResult.staticMismatch) {
                     Logger.debug(`✅ UndeclaredFunctionRule: Found static method "${functionName}" in current class or inheritance`);
                     return { isDeclared: true };
                 }

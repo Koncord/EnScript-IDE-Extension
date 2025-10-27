@@ -71,18 +71,39 @@ export class UndeclaredMethodRule extends UndeclaredEntityRule {
 
         // Check if method is declared on the type
         // For super access, exclude modded classes to only check the original class
-        const isDeclared = await this.findMemberInClassHierarchy(
+        const memberResult = await this.findMemberInClassHierarchy(
             objectType,
             methodName,
             isStaticAccess,
             context,
             allowPrivate, // allow private if we're inside the same class
             isSuperAccess // exclude modded classes for super access
-        ) != null;
+        );
         
-        if (isDeclared) {
+        if (memberResult && !memberResult.staticMismatch) {
             Logger.debug(`UndeclaredMethodRule: Member '${objectType}.${methodName}' found`);
             return [];
+        }
+
+        // If we found a member but with static mismatch, provide a more specific error
+        if (memberResult && memberResult.staticMismatch) {
+            Logger.warn(`UndeclaredMethodRule: Member '${objectType}.${methodName}' found but with static mismatch`);
+            const isActuallyStatic = !isStaticAccess; // If we were looking for instance but got static
+            const message = isActuallyStatic 
+                ? `Cannot access static member '${methodName}' on instance of '${objectType}'`
+                : `Cannot access instance member '${methodName}' on class '${objectType}'`;
+            
+            return [
+                {
+                    message,
+                    range: {
+                        start: node.memberStart,
+                        end: node.memberEnd
+                    },
+                    severity: config.severity || this.defaultSeverity,
+                    code: this.id
+                }
+            ];
         }
 
         Logger.warn(`UndeclaredMethodRule: Member '${objectType}.${methodName}' NOT found (static: ${isStaticAccess}, allowPrivate: ${allowPrivate})`);
