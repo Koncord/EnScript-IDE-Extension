@@ -6,6 +6,8 @@ class Class {
 }
 
 class PlayerBase {
+    void SomeMethod() {}
+    int GetHealth() { return 100; }
 }
 
 class PlayerIdentity {

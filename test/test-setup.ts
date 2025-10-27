@@ -5,18 +5,27 @@
  * Add global test configurations, mocks, or setup logic here as needed.
  */
 
-// Example: Set up global test timeout
-// jest.setTimeout(30000);
+import { readFileSync } from 'fs';
+import { join } from 'path';
 
-// Example: Add custom matchers
-// expect.extend({ ... });
+// Global test configuration
+jest.setTimeout(30000);
 
-// Example: Global test setup
-// beforeAll(() => {
-//   // Setup code
-// });
+// Load SDK base file for tests that need it
+const sdkBasePath = join(__dirname, 'fixtures', 'sdk_base.c');
+const sdkBaseContent = readFileSync(sdkBasePath, 'utf-8');
 
-// Example: Global test teardown
-// afterAll(() => {
-//   // Cleanup code
-// });
+// Make SDK base content available globally for tests
+(global as any).SDK_BASE_CONTENT = sdkBaseContent;
+(global as any).SDK_BASE_URI = 'test://sdk_base.c';
+
+// Global test setup
+beforeAll(() => {
+  // Setup code that runs before all test suites
+  console.log('Test setup: SDK base file loaded from fixtures');
+});
+
+// Global test teardown
+afterAll(() => {
+  // Cleanup code that runs after all test suites
+});
