@@ -46,6 +46,23 @@ export abstract class UndeclaredEntityRule extends BaseDiagnosticRule {
     }
 
     /**
+     * Check if a type name is a generic parameter of the containing class
+     */
+    protected isGenericParameter(typeName: string, node: ASTNode, context: DiagnosticRuleContext, containingClass: ClassDeclNode | null): boolean {
+        if (!containingClass || !containingClass.genericParameters) {
+            return false;
+        }
+
+        for (const genericParam of containingClass.genericParameters) {
+            if (genericParam.name === typeName) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * Get the name of the class that contains the current context
      */
     protected getCurrentClassName(context: DiagnosticRuleContext): string | null {

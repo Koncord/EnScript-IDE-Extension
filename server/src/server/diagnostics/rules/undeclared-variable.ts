@@ -393,6 +393,14 @@ class IdentifierFilterVisitor extends BaseASTVisitor<void> {
             return;
         }
 
+        if (this.containingClass && this.containingClass.genericParameters) {
+            for (const genericParam of this.containingClass.genericParameters) {
+                if (genericParam.name === node.name) {
+                    return; // It's a generic parameter, not an undeclared variable
+                }
+            }
+        }
+
         // Check global variables
         if (this.context.typeResolver) {
             const globalVars = this.context.typeResolver.findAllGlobalVariableDefinitions(node.name);

@@ -67,6 +67,11 @@ export class UndeclaredMethodRule extends UndeclaredEntityRule {
         const containingClass = this.findContainingClass(node, context);
         const allowPrivate = containingClass !== null && containingClass.name === objectType;
 
+        if (this.isGenericParameter(objectType, node, context, containingClass)) {
+            Logger.debug(`UndeclaredMethodRule: Skipping generic parameter '${objectType}'`);
+            return [];
+        }
+
         Logger.debug(`UndeclaredMethodRule: Checking member '${objectType}.${methodName}' (static: ${isStaticAccess}, allowPrivate: ${allowPrivate}, super: ${isSuperAccess})`);
 
         // Check if method is declared on the type
