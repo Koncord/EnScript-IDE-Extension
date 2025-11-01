@@ -64,6 +64,22 @@ void TestFunction() {
             // Should not have any diagnostics for InstanceMethod
             expectNoDiagnosticWithMessage(results, 'InstanceMethod');
         });
+
+        it('should not report error for static method called on instance', async () => {
+            const code = `
+class TestClass {
+    static void StaticMethod() {}
+}
+
+void TestFunction() {
+    TestClass obj;
+    obj.StaticMethod(); // Static mismatch handled by StaticInstanceMismatchRule
+}`;
+            const results = await runDiagnosticRule(rule, code, testContext);
+            
+            // UndeclaredMethodRule should not report this - StaticInstanceMismatchRule will
+            expectNoDiagnosticWithMessage(results, 'StaticMethod');
+        });
     });
 
     describe('Const Members', () => {

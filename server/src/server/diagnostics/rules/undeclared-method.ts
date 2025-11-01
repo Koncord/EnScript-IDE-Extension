@@ -85,30 +85,15 @@ export class UndeclaredMethodRule extends UndeclaredEntityRule {
             isSuperAccess // exclude modded classes for super access
         );
         
-        if (memberResult && !memberResult.staticMismatch) {
-            Logger.debug(`UndeclaredMethodRule: Member '${objectType}.${methodName}' found`);
+        // If we found a member (with or without static mismatch), the member exists
+        // Static mismatch will be handled by StaticInstanceMismatchRule (as a warning)
+        if (memberResult) {
+            if (memberResult.staticMismatch) {
+                Logger.debug(`UndeclaredMethodRule: Member '${objectType}.${methodName}' found with static mismatch - will be handled by StaticInstanceMismatchRule`);
+            } else {
+                Logger.debug(`UndeclaredMethodRule: Member '${objectType}.${methodName}' found`);
+            }
             return [];
-        }
-
-        // If we found a member but with static mismatch, provide a more specific error
-        if (memberResult && memberResult.staticMismatch) {
-            Logger.warn(`UndeclaredMethodRule: Member '${objectType}.${methodName}' found but with static mismatch`);
-            const isActuallyStatic = !isStaticAccess; // If we were looking for instance but got static
-            const message = isActuallyStatic 
-                ? `Cannot access static member '${methodName}' on instance of '${objectType}'`
-                : `Cannot access instance member '${methodName}' on class '${objectType}'`;
-            
-            return [
-                {
-                    message,
-                    range: {
-                        start: node.memberStart,
-                        end: node.memberEnd
-                    },
-                    severity: config.severity || this.defaultSeverity,
-                    code: this.id
-                }
-            ];
         }
 
         Logger.warn(`UndeclaredMethodRule: Member '${objectType}.${methodName}' NOT found (static: ${isStaticAccess}, allowPrivate: ${allowPrivate})`);
