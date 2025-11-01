@@ -27,6 +27,16 @@ import { isClass, isEnum, isFunction, isMethod, isTypedef, isTypeReference, isVa
 import { injectable, inject } from 'inversify';
 import { IAnalyzer } from './analyzer-interfaces';
 
+// Import keywords for autocompletion
+import { 
+    declarationKeywords,
+    modifierKeywords,
+    typeKeywords,
+    controlKeywords,
+    storageKeywords,
+    literalKeywords
+} from '../lexer/rules';
+
 @injectable()
 export class Analyzer implements IAnalyzer {
     constructor(
@@ -429,6 +439,135 @@ export class Analyzer implements IAnalyzer {
                     }
                 }
             }
+        }
+
+        // 5. Add language keywords (lowest priority)
+        const keywordItems = this.getKeywordCompletions();
+        for (const keywordItem of keywordItems) {
+            if (!seen.has(keywordItem.label)) {
+                seen.add(keywordItem.label);
+                keywordItem.sortText = `5_${keywordItem.label}`;
+                items.push(keywordItem);
+            }
+        }
+
+        return items;
+    }
+
+    /**
+     * Get keyword completion items
+     */
+    private getKeywordCompletions(): CompletionItem[] {
+        const items: CompletionItem[] = [];
+
+        // Helper function to create keyword completion items
+        const createKeywordItem = (keyword: string, category: string): CompletionItem => ({
+            label: keyword,
+            kind: CompletionItemKind.Keyword,
+            detail: `${category} keyword`,
+            documentation: `${category.charAt(0).toUpperCase() + category.slice(1)} keyword: ${keyword}`
+        });
+
+        // Helper function to create control flow keyword with snippet
+        const createControlFlowItem = (keyword: string, snippet: string, description: string): CompletionItem => ({
+            label: keyword,
+            kind: CompletionItemKind.Snippet,
+            detail: `${keyword} statement`,
+            documentation: description,
+            insertText: snippet,
+            insertTextFormat: 2 // Snippet format
+        });
+
+        // Add all keyword categories
+        for (const keyword of declarationKeywords) {
+            items.push(createKeywordItem(keyword, 'declaration'));
+        }
+
+        for (const keyword of modifierKeywords) {
+            items.push(createKeywordItem(keyword, 'modifier'));
+        }
+
+        for (const keyword of typeKeywords) {
+            items.push(createKeywordItem(keyword, 'type'));
+        }
+
+        // Control flow keywords with smart snippets
+        for (const keyword of controlKeywords) {
+            switch (keyword) {
+                case 'if':
+                    items.push(createControlFlowItem(
+                        'if',
+                        'if ($1)$0',
+                        'if statement with condition and block'
+                    ));
+                    break;
+                case 'for':
+                    items.push(createControlFlowItem(
+                        'for',
+                        'for (${1:int i = 0}; ${2:i < count}; ${3:i++})$0',
+                        'for loop with initialization, condition, and increment'
+                    ));
+                    break;
+                case 'foreach':
+                    items.push(createControlFlowItem(
+                        'foreach',
+                        'foreach (${1:auto item} : ${2:collection})$0',
+                        'foreach loop to iterate over collection'
+                    ));
+                    break;
+                case 'while':
+                    items.push(createControlFlowItem(
+                        'while',
+                        'while ($1)$0',
+                        'while loop with condition'
+                    ));
+                    break;
+                case 'switch':
+                    items.push(createControlFlowItem(
+                        'switch',
+                        'switch ($1)$0',
+                        'switch statement with case and default'
+                    ));
+                    break;
+                case 'case':
+                    items.push(createControlFlowItem(
+                        'case',
+                        'case ${1:value}:$0',
+                        'case label in switch statement'
+                    ));
+                    break;
+                case 'default':
+                    items.push(createControlFlowItem(
+                        'default',
+                        'default:\n\t$0',
+                        'default case in switch statement'
+                    ));
+                    break;
+                case 'break':
+                    items.push(createControlFlowItem(
+                        'break',
+                        'break;',
+                        'break out of loop or switch'
+                    ));
+                    break;
+                case 'continue':
+                    items.push(createControlFlowItem(
+                        'continue',
+                        'continue;',
+                        'continue to next iteration'
+                    ));
+                    break;
+                default:
+                    items.push(createKeywordItem(keyword, 'control flow'));
+            }
+        }
+
+        for (const keyword of storageKeywords) {
+            items.push(createKeywordItem(keyword, 'storage'));
+        }
+
+        for (const keyword of literalKeywords) {
+            items.push(createKeywordItem(keyword, 'literal'));
         }
 
         return items;
