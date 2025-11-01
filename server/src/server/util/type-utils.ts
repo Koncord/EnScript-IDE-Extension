@@ -187,16 +187,20 @@ export function stripTypeModifiers(typeName: string): string {
     return result;
 }
 
+export function isPrimitiveBuiltInType(typeName: string): boolean {
+    const primitiveTypes = ['int', 'float', 'bool', 'string', 'void', 'vector'];
+    return primitiveTypes.includes(typeName);
+}
+
 /**
  * Check if a type name is a built-in type
  */
 export function isBuiltInType(typeName: string): boolean {
     const builtInTypes = [
-        'int', 'float', 'bool', 'string', 'void', 'auto', 'vector',
         // Built-in generic types
         'array', 'map', 'set'
     ];
-    return builtInTypes.includes(typeName);
+    return builtInTypes.includes(typeName) || isPrimitiveBuiltInType(typeName);
 }
 
 /**
@@ -215,5 +219,5 @@ export function isPrimitiveType(typeName: string): boolean {
     const baseType = extractBaseClassName(typeName);
     const withoutGenerics = extractBaseClassNameWithoutGenerics(baseType);
 
-    return isBuiltInType(withoutGenerics);
+    return isPrimitiveBuiltInType(withoutGenerics);
 }

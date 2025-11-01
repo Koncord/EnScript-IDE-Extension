@@ -31,7 +31,7 @@ import {
 } from '../../ast/node-types';
 import { Logger } from '../../../util/logger';
 import { extractTypeName } from '../../util/symbol-resolution-utils';
-import { isBuiltInType, extractBaseClassName, parseGenericType, isPrimitiveType } from '../../util/type-utils';
+import { isBuiltInType, extractBaseClassName, parseGenericType, isPrimitiveType, isPrimitiveBuiltInType } from '../../util/type-utils';
 
 /**
  * Rule for detecting type mismatches in assignments, returns, and function calls.
@@ -143,6 +143,30 @@ export class TypeMismatchRule extends BaseDiagnosticRule {
                 return results;
             }
 
+            // Special case: bool to int is allowed but should warn about implicit conversion
+            if (targetType === 'int' && valueType === 'bool') {
+                results.push(
+                    this.createTypeMismatchDiagnostic(
+                        `Implicit conversion from '${valueType}' to '${targetType}'`,
+                        node.right,
+                        DiagnosticSeverity.Warning
+                    )
+                );
+                return results;
+            }
+
+            // Special case: float to int is allowed but should warn about precision loss
+            if (targetType === 'int' && valueType === 'float') {
+                results.push(
+                    this.createTypeMismatchDiagnostic(
+                        `Implicit conversion from '${valueType}' to '${targetType}' may lose precision`,
+                        node.right,
+                        DiagnosticSeverity.Warning
+                    )
+                );
+                return results;
+            }
+
             if (!this.isTypeCompatible(targetType, valueType, context)) {
                 results.push(
                     this.createTypeMismatchDiagnostic(
@@ -184,11 +208,57 @@ export class TypeMismatchRule extends BaseDiagnosticRule {
                 return results;
             }
 
+            // Special case: null can be assigned to ref types or reference types (classes, arrays, etc.)
+            if (initializerType === 'null') {
+                // If the type has 'ref' modifier, null is always allowed
+                if (this.hasTypeModifier(node.type, 'ref')) {
+                    return results;
+                }
+                
+                // null can be assigned to reference types (classes, arrays, etc.)
+                // but not to value types (int, float, bool, string, vector, void)
+                const targetBase = parseGenericType(declaredType).baseType;
+                if (isPrimitiveType(targetBase)) {
+                    results.push(
+                        this.createTypeMismatchDiagnostic(
+                            `Type 'null' is not assignable to value type '${declaredType}'`,
+                            node.initializer,
+                            DiagnosticSeverity.Error
+                        )
+                    );
+                }
+                return results;
+            }
+
             // Special case: int to bool is allowed but should warn about truncation
             if (declaredType === 'bool' && initializerType === 'int') {
                 results.push(
                     this.createTypeMismatchDiagnostic(
                         `Implicit conversion from '${initializerType}' to 'bool' may truncate value`,
+                        node.initializer,
+                        DiagnosticSeverity.Warning
+                    )
+                );
+                return results;
+            }
+
+            // Special case: bool to int is allowed but should warn about implicit conversion
+            if (declaredType === 'int' && initializerType === 'bool') {
+                results.push(
+                    this.createTypeMismatchDiagnostic(
+                        `Implicit conversion from '${initializerType}' to '${declaredType}'`,
+                        node.initializer,
+                        DiagnosticSeverity.Warning
+                    )
+                );
+                return results;
+            }
+
+            // Special case: float to int is allowed but should warn about precision loss
+            if (declaredType === 'int' && initializerType === 'float') {
+                results.push(
+                    this.createTypeMismatchDiagnostic(
+                        `Implicit conversion from '${initializerType}' to '${declaredType}' may lose precision`,
                         node.initializer,
                         DiagnosticSeverity.Warning
                     )
@@ -260,6 +330,26 @@ export class TypeMismatchRule extends BaseDiagnosticRule {
             if (declaredReturnType === 'bool' && returnedType === 'int') {
                 results.push(this.createTypeMismatchDiagnostic(
                     `Implicit conversion from '${returnedType}' to 'bool' may truncate value`,
+                    node.argument,
+                    DiagnosticSeverity.Warning
+                ));
+                return results;
+            }
+
+            // Special case: bool to int is allowed but should warn about implicit conversion
+            if (declaredReturnType === 'int' && returnedType === 'bool') {
+                results.push(this.createTypeMismatchDiagnostic(
+                    `Implicit conversion from '${returnedType}' to '${declaredReturnType}'`,
+                    node.argument,
+                    DiagnosticSeverity.Warning
+                ));
+                return results;
+            }
+
+            // Special case: float to int is allowed but should warn about precision loss
+            if (declaredReturnType === 'int' && returnedType === 'float') {
+                results.push(this.createTypeMismatchDiagnostic(
+                    `Implicit conversion from '${returnedType}' to '${declaredReturnType}' may lose precision`,
                     node.argument,
                     DiagnosticSeverity.Warning
                 ));
@@ -484,7 +574,9 @@ export class TypeMismatchRule extends BaseDiagnosticRule {
 
         if (normalizedSource === 'null') {
             const targetBase = parseGenericType(normalizedTarget).baseType;
-            return !isPrimitiveType(targetBase);
+            // null can be assigned to reference types (classes, arrays, etc.)
+            // but not to value types (int, float, bool, string, vector, void)
+            return !isPrimitiveBuiltInType(targetBase);
         }
 
         // Check if either type is a generic type parameter (e.g., T, TValue, TKey)
@@ -675,6 +767,20 @@ export class TypeMismatchRule extends BaseDiagnosticRule {
             current = current.parent;
         }
         return null;
+    }
+
+    /**
+     * Check if a type node has a specific modifier (e.g., 'ref', 'owned')
+     */
+    private hasTypeModifier(typeNode: ASTNode, modifier: string): boolean {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const typeNodeAny = typeNode as any;
+        
+        if ('modifiers' in typeNodeAny && Array.isArray(typeNodeAny.modifiers)) {
+            return typeNodeAny.modifiers.includes(modifier);
+        }
+        
+        return false;
     }
 
     private resolveExpressionType(

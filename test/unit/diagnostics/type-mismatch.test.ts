@@ -11,6 +11,7 @@ import {
     expectDiagnosticWithMessage,
     DiagnosticTestContext
 } from '../../test-helpers/diagnostic-test-helper';
+import { DiagnosticSeverity } from 'vscode-languageserver';
 
 describe('TypeMismatchRule', () => {
     let testContext: DiagnosticTestContext;
@@ -435,6 +436,48 @@ int GetNull() {
             expectDiagnosticWithMessage(results, "Type 'null' is not assignable to type 'int'");
         });
 
+        it('should allow null assigned to ref types', async () => {
+            const code = `
+void Test() {
+    ref array<int> test = null;
+}`;
+            const results = await runDiagnosticRule(rule, code, testContext);
+
+            expect(results).toHaveLength(0);
+        });
+
+        it('should allow null assigned to array types without ref', async () => {
+            const code = `
+void Test() {
+    array<int> arr = null;
+}`;
+            const results = await runDiagnosticRule(rule, code, testContext);
+
+            expect(results).toHaveLength(0);
+        });
+
+        it('should allow null assigned to class types without ref', async () => {
+            const code = `
+class TestClass {}
+
+void Test() {
+    TestClass obj = null;
+}`;
+            const results = await runDiagnosticRule(rule, code, testContext);
+
+            expect(results).toHaveLength(0);
+        });
+
+        it('should allow null assigned to map types', async () => {
+            const code = `
+void Test() {
+    map<string, int> myMap = null;
+}`;
+            const results = await runDiagnosticRule(rule, code, testContext);
+
+            expect(results).toHaveLength(0);
+        });
+
         it('should allow int to float conversion', async () => {
             const code = `
 float GetFloat() {
@@ -445,14 +488,15 @@ float GetFloat() {
             expect(results).toHaveLength(0);
         });
 
-        it('should flag float to int conversion', async () => {
+        it('should warn about float to int conversion', async () => {
             const code = `
 int GetInt() {
     return 3.14;
 }`;
             const results = await runDiagnosticRule(rule, code, testContext);
 
-            expectDiagnosticWithMessage(results, "Type 'float' is not assignable to type 'int'");
+            expectDiagnosticWithMessage(results, "Implicit conversion from 'float' to 'int' may lose precision");
+            expect(results[0].severity).toBe(DiagnosticSeverity.Warning);
         });
 
         it('should handle array type compatibility with matching element types', async () => {
@@ -604,6 +648,43 @@ bool GetFlag() {
             expect(results).toHaveLength(1);
             expect(results[0].severity).toBe(2); // Warning
             expectDiagnosticWithMessage(results, "Implicit conversion from 'int' to 'bool' may truncate value");
+        });
+
+        it('should warn about bool to int conversion in variable declaration', async () => {
+            const code = `
+void Test() {
+    int x = true;
+}`;
+            const results = await runDiagnosticRule(rule, code, testContext);
+
+            expect(results).toHaveLength(1);
+            expectDiagnosticWithMessage(results, "Implicit conversion from 'bool' to 'int'");
+            expect(results[0].severity).toBe(DiagnosticSeverity.Warning);
+        });
+
+        it('should warn about bool to int conversion in assignment', async () => {
+            const code = `
+void Test() {
+    int x;
+    x = false;
+}`;
+            const results = await runDiagnosticRule(rule, code, testContext);
+
+            expect(results).toHaveLength(1);
+            expectDiagnosticWithMessage(results, "Implicit conversion from 'bool' to 'int'");
+            expect(results[0].severity).toBe(DiagnosticSeverity.Warning);
+        });
+
+        it('should warn about bool to int conversion in return statement', async () => {
+            const code = `
+int GetValue() {
+    return true;
+}`;
+            const results = await runDiagnosticRule(rule, code, testContext);
+
+            expect(results).toHaveLength(1);
+            expectDiagnosticWithMessage(results, "Implicit conversion from 'bool' to 'int'");
+            expect(results[0].severity).toBe(DiagnosticSeverity.Warning);
         });
 
         it('should allow generic type parameters in assignments', async () => {
