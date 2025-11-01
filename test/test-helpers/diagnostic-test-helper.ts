@@ -53,11 +53,22 @@ export function setupDiagnosticTestContainer(): DiagnosticTestContext {
         return () => container.get<TypeResolver>(TYPES.ITypeResolver);
     });
 
+    const docCacheManager = container.get<DocumentCacheManager>(TYPES.IDocumentCacheManager);
+    const typeResolver = container.get<TypeResolver>(TYPES.ITypeResolver);
+    const workspaceManager = container.get<WorkspaceManager>(TYPES.IWorkspaceManager);
+
+    // Load SDK base file if available
+    if ((global as any).SDK_BASE_CONTENT && (global as any).SDK_BASE_URI) {
+        parseAndRegisterDocument((global as any).SDK_BASE_CONTENT, docCacheManager, (global as any).SDK_BASE_URI);
+        // Reindex symbols from the SDK to make them available for lookups
+        typeResolver.reindexDocumentSymbols((global as any).SDK_BASE_URI);
+    }
+
     return {
         container,
-        typeResolver: container.get<TypeResolver>(TYPES.ITypeResolver),
-        docCacheManager: container.get<DocumentCacheManager>(TYPES.IDocumentCacheManager),
-        workspaceManager: container.get<WorkspaceManager>(TYPES.IWorkspaceManager)
+        typeResolver,
+        docCacheManager,
+        workspaceManager
     };
 }
 

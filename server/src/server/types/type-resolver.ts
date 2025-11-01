@@ -143,7 +143,7 @@ export class TypeResolver implements ITypeResolver {
     public reindexDocumentSymbols(uri: string): void {
         const normalizedUri = normalizeUri(uri);
         const ast = this.docCache.get(normalizedUri);
-        
+
         if (!ast) {
             Logger.warn(`Cannot reindex symbols - document not in cache: ${normalizedUri}`);
             return;
@@ -226,7 +226,7 @@ export class TypeResolver implements ITypeResolver {
             const ast = this.ensureDocumentParsed(doc);
             const containingFunction = this.findContainingFunctionAtPosition(ast, position);
             const containingClass = this.findClassAtPosition(ast, position);
-            
+
             // Create a stable scope-based key
             const scopeKey = this.createScopeBasedCacheKey(containingClass, containingFunction, position);
             cacheKey = `${doc.uri}|${objectName}|${scopeKey}`;
@@ -319,9 +319,7 @@ export class TypeResolver implements ITypeResolver {
             case 'NewExpression':
                 return this.resolveNewExpression(expr as NewExpression, context);
             default:
-                if (this.enableDetailedLogging) {
-                    Logger.debug(`⚠️ TypeResolver: Unhandled expression type: ${expr.kind}`);
-                }
+                Logger.debug(`⚠️ TypeResolver: Unhandled expression type: ${expr.kind}`);
                 return null;
         }
     }
@@ -430,7 +428,7 @@ export class TypeResolver implements ITypeResolver {
         } else {
             searchCacheKey = `search:${objectName}:${uri}:nopos`;
         }
-        
+
         if (this.typeCache.has(searchCacheKey)) {
             return this.typeCache.get(searchCacheKey)!;
         }
@@ -591,7 +589,7 @@ export class TypeResolver implements ITypeResolver {
             if (isDeclaration(stmt)) {
                 // Check all declarations (handles multiple comma-separated declarations like: int low, high;)
                 const declarationsToCheck: VarDeclNode[] = [];
-                
+
                 if (stmt.declarations && stmt.declarations.length > 0) {
                     // Multiple declarations - check all
                     declarationsToCheck.push(...stmt.declarations.filter(isVarDecl) as VarDeclNode[]);
@@ -719,40 +717,51 @@ export class TypeResolver implements ITypeResolver {
         // Handle function calls - resolve the function and get its return type
         if (isIdentifier(expr.callee)) {
             const funcName = expr.callee.name;
+
+            // First, check if we're inside a class and this might be a method call (including inherited)
+            if (doc && expr.start) {
+                const containingClass = this.findClassAtPosition(context, expr.start);
+                if (containingClass) {
+                    // Look for the method in this class and its inheritance chain
+                    const methodReturnType = this.getMethodReturnType(containingClass.name, funcName, doc);
+                    if (methodReturnType) {
+                        return methodReturnType;
+                    }
+                }
+            }
+
             const functionDecl = this.findFunction(funcName, context);
             if (functionDecl) {
-                const returnType = getTypeName(functionDecl.returnType);
-                return returnType;
+                return getTypeName(functionDecl.returnType);
             }
         }
 
         // Handle method calls
         if (isMemberExpression(expr.callee)) {
             const memberExpr = expr.callee;
-            
+
             // Special handling for Cast method: ClassName.Cast(obj) returns ClassName
             if (isIdentifier(memberExpr.property) && memberExpr.property.name === 'Cast') {
                 // Try to resolve the object (left side of the dot)
                 const objectType = this.resolveExpressionType(memberExpr.object, context, doc);
-                
+
                 // If objectType is null, the object might be a class name (static call)
                 if (!objectType && isIdentifier(memberExpr.object)) {
                     const className = memberExpr.object.name;
                     // Check if this is actually a class name
                     const classDefinitions = this.findAllClassDefinitions(className);
                     if (classDefinitions.length > 0) {
-                        Logger.debug(`   ✨ Cast call on class "${className}" - returning class type`);
                         return className;
                     }
                 }
-                
+
                 // If we resolved objectType, it means instance.Cast() which shouldn't happen
                 // but if it does, return the object's type
                 if (objectType) {
                     return objectType;
                 }
             }
-            
+
             // Regular method call resolution
             const result = this.resolveMemberExpression(memberExpr, context, doc);
             return result;
@@ -832,7 +841,7 @@ export class TypeResolver implements ITypeResolver {
         // Handle arithmetic operators with proper type rules
         if (['+', '-', '*', '/', '%'].includes(expr.operator)) {
             // Vector arithmetic: vector +- vector -> vector
-            if ((expr.operator === '+' || expr.operator === '-') && 
+            if ((expr.operator === '+' || expr.operator === '-') &&
                 leftType === 'vector' && rightType === 'vector') {
                 return 'vector';
             }
@@ -840,15 +849,15 @@ export class TypeResolver implements ITypeResolver {
             // Vector-scalar multiplication: vector * scalar or scalar * vector -> vector
             if (expr.operator === '*') {
                 const hasVector = leftType === 'vector' || rightType === 'vector';
-                const hasNumeric = (leftType === 'int' || leftType === 'float') || 
-                                  (rightType === 'int' || rightType === 'float');
+                const hasNumeric = (leftType === 'int' || leftType === 'float') ||
+                    (rightType === 'int' || rightType === 'float');
                 if (hasVector && hasNumeric) {
                     return 'vector';
                 }
             }
 
             // Vector-scalar division: vector / scalar -> vector
-            if (expr.operator === '/' && leftType === 'vector' && 
+            if (expr.operator === '/' && leftType === 'vector' &&
                 (rightType === 'int' || rightType === 'float')) {
                 return 'vector';
             }
@@ -865,6 +874,11 @@ export class TypeResolver implements ITypeResolver {
 
             if (leftType === 'int' && rightType === 'int') {
                 return 'int';
+            }
+
+            // If we couldn't resolve one of the types, don't guess
+            if (!leftType || !rightType || leftType === 'unknown' || rightType === 'unknown') {
+                return null;
             }
 
             // Default to left type
@@ -969,20 +983,11 @@ export class TypeResolver implements ITypeResolver {
     /**
      * Find function declaration by name in a specific document
      */
-    private findFunction(funcName: string, context: FileNode): FunctionDeclNode | MethodDeclNode | null {
+    private findFunction(funcName: string, context: FileNode): FunctionDeclNode | null {
         // Search in top-level functions
         for (const decl of context.body) {
             if (isFunction(decl) && decl.name === funcName) {
                 return decl;
-            }
-            
-            // Also search inside classes for methods
-            if (isClass(decl)) {
-                for (const member of decl.members || []) {
-                    if ((isMethod(member) || isFunction(member)) && member.name === funcName) {
-                        return member;
-                    }
-                }
             }
         }
         return null;
@@ -1074,7 +1079,7 @@ export class TypeResolver implements ITypeResolver {
             }
             current = current.parent;
         }
-        
+
         // Fallback: try to find by URI in cache
         if (node.uri) {
             for (const [_, ast] of this.docCache.entries()) {
@@ -1083,7 +1088,7 @@ export class TypeResolver implements ITypeResolver {
                 }
             }
         }
-        
+
         return null;
     }
 
@@ -1116,7 +1121,7 @@ export class TypeResolver implements ITypeResolver {
      * Create a stable cache key based on scope context rather than exact position
      */
     private createScopeBasedCacheKey(
-        containingClass: ClassDeclNode | null, 
+        containingClass: ClassDeclNode | null,
         containingFunction: FunctionDeclNode | MethodDeclNode | null,
         position: Position
     ): string {
@@ -1124,20 +1129,20 @@ export class TypeResolver implements ITypeResolver {
         if (!containingClass && !containingFunction) {
             return 'global';
         }
-        
+
         // For class scope but outside method
         if (containingClass && !containingFunction) {
             return `class:${containingClass.name}`;
         }
-        
+
         // For function/method scope - use function name and class if applicable
         if (containingFunction) {
-            const functionId = containingClass 
+            const functionId = containingClass
                 ? `method:${containingClass.name}.${containingFunction.name}`
                 : `function:${containingFunction.name}`;
             return functionId;
         }
-        
+
         // Fallback to position-based key
         return `pos:${position.line}:${position.character}`;
     }
@@ -1205,23 +1210,23 @@ export class TypeResolver implements ITypeResolver {
             const containingClass = this.findContainingClassAtPosition(currentAst, position);
             if (containingClass) {
                 Logger.debug(`🔍 TypeResolver: Found containing class '${containingClass.name}' at position`);
-                
+
                 // Check if this is a modded class
                 const isModdedClass = containingClass.modifiers?.includes('modded') || false;
-                
+
                 if (isModdedClass) {
                     // Modded class: super refers to the original class (same name)
                     Logger.debug(`🎯 TypeResolver: Modded class '${containingClass.name}' - super refers to original class '${containingClass.name}'`);
                     return containingClass.name;
                 }
-                
+
                 // Regular class: super refers to the explicit base class
                 if (containingClass.baseClass) {
                     const baseClassName = getTypeName(containingClass.baseClass);
                     Logger.debug(`🎯 TypeResolver: 'super' resolves to base class: ${baseClassName} for class ${containingClass.name}`);
                     return baseClassName;
                 }
-                
+
                 Logger.debug(`❌ TypeResolver: Class '${containingClass.name}' has no base class`);
                 return null;
             }
@@ -1258,7 +1263,7 @@ export class TypeResolver implements ITypeResolver {
                         (position.line === node.start.line && position.character >= node.start.character);
                     const beforeEnd = position.line < node.end.line ||
                         (position.line === node.end.line && position.character <= node.end.character);
-                    
+
                     if (afterStart && beforeEnd) {
                         return node;
                     }
@@ -1360,7 +1365,7 @@ export class TypeResolver implements ITypeResolver {
         } else {
             // Simple variable, 'this', or class name (for static method calls)
             objectType = this.resolveObjectType(objectPart, doc, position);
-            
+
             // If not found as a variable, check if it's a class name (static method call)
             if (!objectType) {
                 const classDefinitions = this.findAllClassDefinitions(objectPart);
@@ -1418,12 +1423,12 @@ export class TypeResolver implements ITypeResolver {
         // Note: CastTo is NOT handled here - it returns bool and uses an out parameter
         if (isMethodCall && memberName === 'Cast') {
             Logger.debug(`   ✨ Special Cast method detected - returning calling class type: "${baseTypeName}"`);
-            
+
             // For generic types, preserve the full generic signature
-            const fullTypeName = genericArgs.length > 0 
-                ? `${baseTypeName}<${genericArgs.join(', ')}>` 
+            const fullTypeName = genericArgs.length > 0
+                ? `${baseTypeName}<${genericArgs.join(', ')}>`
                 : baseTypeName;
-                
+
             // If there's more to the chain, continue resolving
             if (memberPart.includes('.')) {
                 const closingParenIndex = this.findMatchingClosingParen(memberPart, memberPart.indexOf('('));
@@ -1435,7 +1440,7 @@ export class TypeResolver implements ITypeResolver {
                     }
                 }
             }
-            
+
             return fullTypeName;
         }
 
@@ -1798,7 +1803,8 @@ export class TypeResolver implements ITypeResolver {
                 methodName,
                 (name) => {
                     const defs = this.findAllClassDefinitions(name);
-                    return defs[0] || null;
+                    // IMPORTANT: Merge all class definitions to include modded classes
+                    return mergeClassDefinitions(defs);
                 },
                 false, // Don't include private
                 new Set()
@@ -1848,12 +1854,12 @@ export class TypeResolver implements ITypeResolver {
         }
 
         const classDecl = classDefinitions[0];
-        
+
         // Apply generic type substitution
         const substitutedType = this.substituteGenericTypes(baseReturnType, classDecl, genericArgs);
-        
+
         Logger.debug(`🔄 Generic substitution: ${className}.${methodName}() -> ${baseReturnType} -> ${substitutedType}`);
-        
+
         return substitutedType;
     }
 
