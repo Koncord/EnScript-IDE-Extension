@@ -24,7 +24,7 @@ export class CompletionHandler implements IHandlerRegistration {
             if (!doc) return [];
 
             const items = await this.analyzer.getCompletions(doc, params.position);
-            return items; // Analyzer now returns CompletionItem[] directly
+            return items;
         });
     }
 }

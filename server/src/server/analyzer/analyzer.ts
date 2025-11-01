@@ -106,7 +106,6 @@ export class Analyzer implements IAnalyzer {
     // LSP Method Implementations
     public async getCompletions(doc: TextDocument, position: Position): Promise<CompletionItem[]> {
         try {
-            // Parse with IDE mode for incomplete code, and temporarily add to main cache
             const ideAst = this.cacheManager.ensureDocumentParsedForIde(doc);
             const uri = normalizeUri(doc.uri);
             
@@ -115,7 +114,6 @@ export class Analyzer implements IAnalyzer {
             this.cacheManager.getDocCache().set(uri, ideAst);
             
             try {
-                // Use AST-based completion provider
                 Logger.debug(`🎯 Using ASTCompletionProvider for completions at ${position.line}:${position.character}`);
                 
                 // Check if we're in a member completion context (e.g., "object.")
@@ -484,7 +482,7 @@ export class Analyzer implements IAnalyzer {
     /**
      * Convert a Declaration to a CompletionItem
      */
-    private declarationToCompletionItem(decl: Declaration, doc?: TextDocument, position?: Position, isStatementContext?: boolean): CompletionItem {
+    private declarationToCompletionItem(decl: Declaration, doc?: TextDocument, _position?: Position, _isStatementContext?: boolean): CompletionItem {
         const item: CompletionItem = {
             label: decl.name,
             kind: this.declarationKindToCompletionItemKind(decl.kind),
@@ -499,10 +497,11 @@ export class Analyzer implements IAnalyzer {
         if (isFunction(decl) || isMethod(decl)) {
             const funcDecl = decl as FunctionDeclNode | MethodDeclNode;
             const hasParams = funcDecl.parameters && funcDecl.parameters.length > 0;
+            const hasReturnType = funcDecl.returnType && getTypeName(funcDecl.returnType).toLowerCase() !== 'void';
             
             
             // In statement context, add semicolon (user is calling function as statement, ignoring return value)
-            if (isStatementContext) {
+            if (!hasReturnType) {
                 if (!hasParams) {
                     item.insertText = `${declName}();$0`;
                 } else {
