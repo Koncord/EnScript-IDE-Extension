@@ -730,9 +730,18 @@ export class TypeResolver implements ITypeResolver {
                 }
             }
 
+            // Not found as a method, check for local function in current file
             const functionDecl = this.findFunction(funcName, context);
             if (functionDecl) {
                 return getTypeName(functionDecl.returnType);
+            }
+
+            // Finally, check for global functions across all files
+            if (doc) {
+                const globalFunctionType = this.getGlobalFunctionReturnType(funcName, doc);
+                if (globalFunctionType) {
+                    return globalFunctionType;
+                }
             }
         }
 
