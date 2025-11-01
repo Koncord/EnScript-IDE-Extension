@@ -829,9 +829,51 @@ export class TypeResolver implements ITypeResolver {
             return 'bool';
         }
 
-        // For arithmetic operators, return the common type
+        // Handle arithmetic operators with proper type rules
         if (['+', '-', '*', '/', '%'].includes(expr.operator)) {
-            return leftType || rightType; // TODO: should do proper type coercion
+            // Vector arithmetic: vector +- vector -> vector
+            if ((expr.operator === '+' || expr.operator === '-') && 
+                leftType === 'vector' && rightType === 'vector') {
+                return 'vector';
+            }
+
+            // Vector-scalar multiplication: vector * scalar or scalar * vector -> vector
+            if (expr.operator === '*') {
+                const hasVector = leftType === 'vector' || rightType === 'vector';
+                const hasNumeric = (leftType === 'int' || leftType === 'float') || 
+                                  (rightType === 'int' || rightType === 'float');
+                if (hasVector && hasNumeric) {
+                    return 'vector';
+                }
+            }
+
+            // Vector-scalar division: vector / scalar -> vector
+            if (expr.operator === '/' && leftType === 'vector' && 
+                (rightType === 'int' || rightType === 'float')) {
+                return 'vector';
+            }
+
+            // String concatenation
+            if (expr.operator === '+' && (leftType === 'string' || rightType === 'string')) {
+                return 'string';
+            }
+
+            // Numeric type promotion
+            if (leftType === 'float' || rightType === 'float') {
+                return 'float';
+            }
+
+            if (leftType === 'int' && rightType === 'int') {
+                return 'int';
+            }
+
+            // Default to left type
+            return leftType || rightType;
+        }
+
+        // Bitwise operators
+        if (['&', '|', '^', '<<', '>>'].includes(expr.operator)) {
+            return 'int';
         }
 
         return leftType || rightType;
@@ -873,6 +915,11 @@ export class TypeResolver implements ITypeResolver {
      * Resolve literal type
      */
     private resolveLiteral(expr: Literal): string {
+        // Handle null literal explicitly
+        if (expr.value === null) {
+            return 'null';
+        }
+
         switch (expr.literalType) {
             case 'int':
                 return 'int';
@@ -922,10 +969,20 @@ export class TypeResolver implements ITypeResolver {
     /**
      * Find function declaration by name in a specific document
      */
-    private findFunction(funcName: string, context: FileNode): FunctionDeclNode | null {
+    private findFunction(funcName: string, context: FileNode): FunctionDeclNode | MethodDeclNode | null {
+        // Search in top-level functions
         for (const decl of context.body) {
             if (isFunction(decl) && decl.name === funcName) {
                 return decl;
+            }
+            
+            // Also search inside classes for methods
+            if (isClass(decl)) {
+                for (const member of decl.members || []) {
+                    if ((isMethod(member) || isFunction(member)) && member.name === funcName) {
+                        return member;
+                    }
+                }
             }
         }
         return null;

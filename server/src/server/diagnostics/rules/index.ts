@@ -7,6 +7,7 @@ export { UndeclaredEnumMemberRule } from './undeclared-enum-member';
 export { UndeclaredBaseClassRule } from './undeclared-base-class';
 export { UndeclaredEntityRule } from './undeclared-entity-base';
 export { StaticInstanceMismatchRule } from './static-instance-mismatch';
+export { TypeMismatchRule } from './type-mismatch';
 
 import { DiagnosticRule } from '../rules';
 import { UnusedTypedefRule } from './unused-typedef';
@@ -17,6 +18,7 @@ import { UndeclaredTypeRule } from './undeclared-type';
 import { UndeclaredEnumMemberRule } from './undeclared-enum-member';
 import { UndeclaredBaseClassRule } from './undeclared-base-class';
 import { StaticInstanceMismatchRule } from './static-instance-mismatch';
+import { TypeMismatchRule } from './type-mismatch';
 import { DiagnosticRuleRegistry } from '../registry';
 
 /**
@@ -31,7 +33,8 @@ export function getBuiltInRules(): DiagnosticRule[] {
         new UndeclaredTypeRule(),
         new UndeclaredEnumMemberRule(),
         new UndeclaredBaseClassRule(),
-        new StaticInstanceMismatchRule()
+        new StaticInstanceMismatchRule(),
+        new TypeMismatchRule()
     ];
 }
 
@@ -77,5 +80,10 @@ export function registerBuiltInRules(registry: DiagnosticRuleRegistry): void {
 
     registry.register(new UnusedTypedefRule(), {
         priority: 90
+    });
+
+    // Type checking rules
+    registry.register(new TypeMismatchRule(), {
+        priority: 95 // Check type compatibility after type existence is verified
     });
 }

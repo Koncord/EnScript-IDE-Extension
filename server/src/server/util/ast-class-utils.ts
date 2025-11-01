@@ -25,7 +25,15 @@ import {
     WhileStatement,
     ForStatement,
     ForEachStatement,
-    IfStatement
+    IfStatement,
+    ReturnStatement,
+    ThisExpression,
+    NewExpression,
+    ConditionalExpression,
+    CastExpression,
+    Literal,
+    ArrayLiteralExpression,
+    VectorLiteral
 } from '../ast/node-types';
 import { Logger } from '../../util/logger';
 import { extractTypeName } from './symbol-resolution-utils';
@@ -84,6 +92,18 @@ export function isConstDeclaration(decl?: Declaration): boolean {
     return decl?.modifiers.includes('const') ?? false;
 }
 
+export function isLiteral(node?: ASTNode): node is Literal {
+    return node != null && node.kind === 'Literal';
+}
+
+export function isVectorLiteral(node?: ASTNode): node is VectorLiteral {
+    return node != null && node.kind === 'VectorLiteral';
+}
+
+export function isArrayLiteral(node?: ASTNode): node is ArrayLiteralExpression {
+    return node != null && node.kind === 'ArrayLiteralExpression';
+}
+
 export function isIdentifier(node?: ASTNode): node is Identifier {
     return node != null && node.kind === 'Identifier';
 }
@@ -106,6 +126,10 @@ export function isForEachStatement(node?: ASTNode): node is ForEachStatement {
 
 export function isIfStatement(node?: ASTNode): node is IfStatement {
     return node != null && node.kind === 'IfStatement';
+}
+
+export function isReturnStatement(node?: ASTNode): node is ReturnStatement {
+    return node != null && node.kind === 'ReturnStatement';
 }
 
 export function isDeclaration(node?: ASTNode): node is DeclarationStatement {
@@ -134,6 +158,22 @@ export function isBinaryExpression(node?: ASTNode): node is BinaryExpression {
 
 export function isAssignmentExpression(node?: ASTNode): node is AssignmentExpression {
     return node != null && (node.kind === 'AssignmentExpression');
+}
+
+export function isConditionalExpression(node?: ASTNode): node is ConditionalExpression {
+    return node != null && node.kind === 'ConditionalExpression';
+}
+
+export function isCastExpression(node?: ASTNode): node is CastExpression {
+    return node != null && node.kind === 'CastExpression';
+}
+
+export function isThisExpression(node?: ASTNode): node is ThisExpression {
+    return node != null && node.kind === 'ThisExpression';
+}
+
+export function isNewExpression(node?: ASTNode): node is NewExpression {
+    return node != null && node.kind === 'NewExpression';
 }
 
 export function isTypeReference(node?: ASTNode): node is TypeReferenceNode {
