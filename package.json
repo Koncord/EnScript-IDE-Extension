@@ -2,7 +2,7 @@
     "name": "enscript-ide",
     "displayName": "EnScript IDE",
     "description": "EnScript language support for DayZ game.",
-    "version": "0.6.1",
+    "version": "0.7.0",
     "publisher": "AlpineTeam",
     "icon": "icons/logo.png",
     "type": "commonjs",
