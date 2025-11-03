@@ -255,15 +255,9 @@ export async function findExactDefinition(
             scopeContext.containingClass,
             symbolName,
             (className) => {
-                // Find class in docCache
-                for (const [_uri, ast] of docCache.entries()) {
-                    for (const decl of ast.body) {
-                        if (isClass(decl) && decl.name === className) {
-                            return decl;
-                        }
-                    }
-                }
-                return null;
+                // Use typeResolver which automatically resolves typedefs
+                const classDefs = typeResolver.findAllClassDefinitions(className);
+                return classDefs.length > 0 ? classDefs[0] : null;
             },
             false, // Don't include private members from base classes
             new Set()

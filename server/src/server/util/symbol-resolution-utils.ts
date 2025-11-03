@@ -11,7 +11,9 @@ import {
     Declaration, 
     ASTNode,
     FileNode,
-    TypeNode
+    TypeNode,
+    MethodDeclNode,
+    MemberExpression
 } from '../ast';
 import { 
     isClass, 
@@ -22,7 +24,9 @@ import {
     isVarDecl,
     findMemberInClassWithInheritance,
     isStaticDeclaration,
-    isConstDeclaration
+    isConstDeclaration,
+    isIdentifier,
+    isThisExpression
 } from './ast-class-utils';
 import { keywords } from '../lexer/rules';
 import { Logger } from '../../util/logger';
@@ -777,4 +781,267 @@ export function findContainingClass(node: ASTNode, _ast: FileNode): ClassDeclNod
         current = current.parent;
     }
     return null;
+}
+
+/**
+ * Find the function or method that contains a node by walking up the parent chain
+ * This finds the enclosing callable context (function or method) for a given node.
+ * 
+ * @param node The AST node to start searching from
+ * @returns The containing FunctionDeclNode or MethodDeclNode, or null if not found
+ */
+export function findContainingFunctionOrMethod(node: ASTNode): FunctionDeclNode | null {
+    let current: ASTNode | undefined = node.parent;
+    while (current) {
+        if (isFunction(current) || isMethod(current)) {
+            return current as FunctionDeclNode;
+        }
+        current = current.parent;
+    }
+    return null;
+}
+
+/**
+ * Check if a source class is derived from (extends) a target class.
+ * Walks the inheritance chain and resolves typedefs.
+ * 
+ * @param sourceClass The class name to check (potential child class)
+ * @param targetClass The base class name to check against (potential parent class)
+ * @param context Symbol resolution context with typeResolver
+ * @returns true if sourceClass is derived from targetClass, false otherwise
+ */
+export function isClassDerivedFrom(
+    sourceClass: string,
+    targetClass: string,
+    context: SymbolResolutionContext
+): boolean {
+    if (!context.typeResolver) {
+        return false;
+    }
+
+    if (sourceClass === targetClass) {
+        return true;
+    }
+
+    if (isBuiltInType(sourceClass) || isBuiltInType(targetClass)) {
+        return false;
+    }
+
+    try {
+        const sourceClassDefs = context.typeResolver.findAllClassDefinitions(sourceClass);
+        if (sourceClassDefs.length === 0) {
+            return false;
+        }
+
+        for (const classDef of sourceClassDefs) {
+            if (checkInheritanceChain(classDef, targetClass, context, new Set())) {
+                return true;
+            }
+        }
+    } catch (error) {
+        Logger.debug(`isClassDerivedFrom: Error checking class inheritance: ${error}`);
+    }
+
+    return false;
+}
+
+/**
+ * Check inheritance chain by walking up the class hierarchy.
+ * Resolves typedefs to their underlying class types.
+ * 
+ * @param classDef The class definition to start from
+ * @param targetClass The target base class name to find
+ * @param context Symbol resolution context with typeResolver
+ * @param visited Set of visited class names to prevent infinite loops
+ * @returns true if targetClass is found in the inheritance chain
+ */
+export function checkInheritanceChain(
+    classDef: ClassDeclNode,
+    targetClass: string,
+    context: SymbolResolutionContext,
+    visited: Set<string>
+): boolean {
+    if (visited.has(classDef.name)) {
+        return false;
+    }
+    visited.add(classDef.name);
+
+    if (!classDef.baseClass || !context.typeResolver) {
+        return false;
+    }
+
+    const baseClassName = extractTypeName(classDef.baseClass);
+    if (!baseClassName) {
+        return false;
+    }
+
+    // Resolve typedef to actual class name if needed
+    let resolvedBaseClassName = baseClassName;
+    const typedefResolved = context.typeResolver.resolveTypedefToClassName(baseClassName);
+    if (typedefResolved) {
+        resolvedBaseClassName = typedefResolved;
+    }
+
+    if (resolvedBaseClassName === targetClass) {
+        return true;
+    }
+
+    // Also check if the original baseClassName matches (in case typedef itself is the target)
+    if (baseClassName === targetClass) {
+        return true;
+    }
+
+    const baseClassDefs = context.typeResolver.findAllClassDefinitions(resolvedBaseClassName);
+    for (const baseClassDef of baseClassDefs) {
+        if (checkInheritanceChain(baseClassDef, targetClass, context, visited)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+/**
+ * Find a function declaration in the current file's AST
+ * @param funcName The name of the function to find
+ * @param ast The file AST to search in
+ * @returns The function declaration node if found, null otherwise
+ */
+export function findFunctionInFile(funcName: string, ast: FileNode): FunctionDeclNode | null {
+    for (const decl of ast.body) {
+        if (isFunction(decl) && decl.name === funcName) {
+            return decl;
+        }
+    }
+    return null;
+}
+
+/**
+ * Find a method in a class (including inherited methods)
+ * Returns the first matching method (does not handle overloads)
+ * @param classDecl The class to search in
+ * @param methodName The name of the method to find
+ * @param context Symbol resolution context with typeResolver for inheritance lookup
+ * @returns The method declaration node if found, null otherwise
+ */
+export function findMethodInClass(
+    classDecl: ClassDeclNode,
+    methodName: string,
+    context: SymbolResolutionContext
+): MethodDeclNode | null {
+    const methods = findAllMethodsInClass(classDecl, methodName, context);
+    return methods.length > 0 ? methods[0] : null;
+}
+
+/**
+ * Find all methods with a given name in a class (including inherited methods)
+ * Supports method overloading by returning all matching methods
+ * @param classDecl The class to search in
+ * @param methodName The name of the method to find
+ * @param context Symbol resolution context with typeResolver for inheritance lookup
+ * @returns Array of all matching method declaration nodes (may be empty)
+ */
+export function findAllMethodsInClass(
+    classDecl: ClassDeclNode,
+    methodName: string,
+    context: SymbolResolutionContext
+): MethodDeclNode[] {
+    const methods: MethodDeclNode[] = [];
+
+    // Check in current class
+    for (const member of classDecl.members) {
+        if (isMethod(member) && member.name === methodName) {
+            methods.push(member);
+        }
+    }
+
+    // Check in base class
+    if (classDecl.baseClass && context.typeResolver) {
+        const baseClassName = extractTypeName(classDecl.baseClass);
+        if (baseClassName) {
+            const baseClassDefs = context.typeResolver.findAllClassDefinitions(baseClassName);
+            for (const baseClassDef of baseClassDefs) {
+                const baseMethods = findAllMethodsInClass(baseClassDef, methodName, context);
+                methods.push(...baseMethods);
+            }
+        }
+    }
+
+    return methods;
+}
+
+/**
+ * Resolve all methods from a member expression (e.g., obj.method(), this.method(), ClassName.StaticMethod())
+ * Supports method overloading by returning all matching methods
+ * @param memberExpr The member expression to resolve (e.g., obj.method or this.method)
+ * @param ast The file AST for context lookup
+ * @param context Symbol resolution context with typeResolver
+ * @returns Array of all matching method declaration nodes (may be empty)
+ */
+export async function resolveMethodsFromMemberExpression(
+    memberExpr: MemberExpression,
+    ast: FileNode,
+    context: SymbolResolutionContext
+): Promise<MethodDeclNode[]> {
+    const methods: MethodDeclNode[] = [];
+
+    try {
+        if (!isIdentifier(memberExpr.property)) {
+            return methods;
+        }
+
+        const methodName = memberExpr.property.name;
+
+        // Handle 'this' keyword - get the containing class
+        if (isThisExpression(memberExpr.object)) {
+            const containingClass = findContainingClass(memberExpr, ast);
+            if (containingClass) {
+                return findAllMethodsInClass(containingClass, methodName, context);
+            }
+        }
+
+        // Handle static method calls via class name (e.g., MyClass.StaticMethod)
+        // Check if the object is a class name
+        if (isIdentifier(memberExpr.object) && context.typeResolver) {
+            const potentialClassName = memberExpr.object.name;
+            const classDefs = context.typeResolver.findAllClassDefinitions(potentialClassName);
+            if (classDefs.length > 0) {
+                // It's a static method call
+                for (const classDef of classDefs) {
+                    const classMethods = findAllMethodsInClass(classDef, methodName, context);
+                    methods.push(...classMethods);
+                }
+                return methods;
+            }
+        }
+
+        // Regular instance method call - resolve the type of the object
+        if (!context.typeResolver || !context.document) {
+            return methods;
+        }
+
+        const objectType = context.typeResolver.resolveExpressionType(
+            memberExpr.object,
+            ast,
+            context.document
+        );
+
+        if (!objectType) {
+            return methods;
+        }
+
+        // Get the class definition
+        const classBase = parseGenericType(objectType).baseType;
+        const classDefs = context.typeResolver.findAllClassDefinitions(classBase);
+
+        for (const classDef of classDefs) {
+            const classMethods = findAllMethodsInClass(classDef, methodName, context);
+            methods.push(...classMethods);
+        }
+
+    } catch (error) {
+        Logger.debug(`resolveMethodsFromMemberExpression: Error resolving methods: ${error}`);
+    }
+
+    return methods;
 }

@@ -215,11 +215,333 @@ class TestClass {
     });
 
     describe('Function Call Parameter Type Mismatches', () => {
-        it.todo('should flag wrong parameter type in function call');
+        it('should flag wrong parameter type in function call', async () => {
+            const code = `
+void TakeInt(int value) {}
 
-        it.todo('should flag multiple parameter type mismatches');
+void test() {
+    TakeInt("hello");
+}`;
+            const results = await runDiagnosticRule(rule, code, testContext);
 
-        it.todo('should allow correct parameter types');
+            expectDiagnosticWithMessage(results, "Argument of type 'string' is not assignable to parameter of type 'int'");
+            expect(results[0].severity).toBe(DiagnosticSeverity.Error);
+        });
+
+        it('should flag multiple parameter type mismatches', async () => {
+            const code = `
+void TakeMultiple(int a, string b, float c) {}
+
+void test() {
+    TakeMultiple("wrong", 42, "also wrong");
+}`;
+            const results = await runDiagnosticRule(rule, code, testContext);
+
+            expect(results.length).toBeGreaterThanOrEqual(2);
+            expectDiagnosticWithMessage(results, "Argument of type 'string' is not assignable to parameter of type 'int'");
+            expectDiagnosticWithMessage(results, "Argument of type 'string' is not assignable to parameter of type 'float'");
+        });
+
+        it('should allow correct parameter types', async () => {
+            const code = `
+void TakeInt(int value) {}
+void TakeString(string text) {}
+void TakeMultiple(int a, string b, float c) {}
+
+void test() {
+    TakeInt(42);
+    TakeString("hello");
+    TakeMultiple(1, "text", 3.14);
+}`;
+            const results = await runDiagnosticRule(rule, code, testContext);
+
+            expect(results).toHaveLength(0);
+        });
+
+        it('should check method call parameter types', async () => {
+            const code = `
+class MyClass {
+    void TakeInt(int value) {}
+    
+    void Test() {
+        TakeInt("wrong");
+    }
+}`;
+            const results = await runDiagnosticRule(rule, code, testContext);
+
+            expectDiagnosticWithMessage(results, "Argument of type 'string' is not assignable to parameter of type 'int'");
+        });
+
+        it('should check static method call parameter types', async () => {
+            const code = `
+class MyClass {
+    static void StaticMethod(int value) {}
+}
+
+void test() {
+    MyClass.StaticMethod("wrong");
+}`;
+            const results = await runDiagnosticRule(rule, code, testContext);
+
+            expectDiagnosticWithMessage(results, "Argument of type 'string' is not assignable to parameter of type 'int'");
+        });
+
+        it('should allow class type parameters', async () => {
+            const code = `
+class MyClass {}
+void TakeClass(MyClass obj) {}
+
+void test() {
+    MyClass instance = new MyClass();
+    TakeClass(instance);
+}`;
+            const results = await runDiagnosticRule(rule, code, testContext);
+
+            expect(results).toHaveLength(0);
+        });
+
+        it('should flag incorrect class type parameters', async () => {
+            const code = `
+class MyClass {}
+class OtherClass {}
+void TakeMyClass(MyClass obj) {}
+
+void test() {
+    OtherClass instance = new OtherClass();
+    TakeMyClass(instance);
+}`;
+            const results = await runDiagnosticRule(rule, code, testContext);
+
+            expectDiagnosticWithMessage(results, "Argument of type 'OtherClass' is not assignable to parameter of type 'MyClass'");
+        });
+
+        it('should allow derived class passed to base class parameter', async () => {
+            const code = `
+class BaseClass {}
+class DerivedClass extends BaseClass {}
+void TakeBase(BaseClass obj) {}
+
+void test() {
+    DerivedClass derived = new DerivedClass();
+    TakeBase(derived);
+}`;
+            const results = await runDiagnosticRule(rule, code, testContext);
+
+            expect(results).toHaveLength(0);
+        });
+
+        it('should allow derived class through typedef to base class parameter', async () => {
+            const code = `
+class ItemBase {}
+typedef ItemBase InventoryItemSuper;
+class MyItem extends InventoryItemSuper {}
+
+void TakeItem(ItemBase item) {}
+
+void test() {
+    MyItem myItem = new MyItem();
+    TakeItem(myItem);
+}`;
+            const results = await runDiagnosticRule(rule, code, testContext);
+
+            expect(results).toHaveLength(0);
+        });
+
+        it('should warn on int to bool parameter conversion', async () => {
+            const code = `
+void TakeBool(bool flag) {}
+
+void test() {
+    TakeBool(1);
+}`;
+            const results = await runDiagnosticRule(rule, code, testContext);
+
+            expectDiagnosticWithMessage(results, "Implicit conversion from 'int' to 'bool' may truncate value");
+            expect(results[0].severity).toBe(DiagnosticSeverity.Warning);
+        });
+
+        it('should warn on bool to int parameter conversion', async () => {
+            const code = `
+void TakeInt(int value) {}
+
+void test() {
+    TakeInt(true);
+}`;
+            const results = await runDiagnosticRule(rule, code, testContext);
+
+            expectDiagnosticWithMessage(results, "Implicit conversion from 'bool' to 'int'");
+            expect(results[0].severity).toBe(DiagnosticSeverity.Warning);
+        });
+
+        it('should warn on float to int parameter conversion', async () => {
+            const code = `
+void TakeInt(int value) {}
+
+void test() {
+    TakeInt(3.14);
+}`;
+            const results = await runDiagnosticRule(rule, code, testContext);
+
+            expectDiagnosticWithMessage(results, "Implicit conversion from 'float' to 'int' may lose precision");
+            expect(results[0].severity).toBe(DiagnosticSeverity.Warning);
+        });
+
+        it('should allow int to float parameter conversion', async () => {
+            const code = `
+void TakeFloat(float value) {}
+
+void test() {
+    TakeFloat(42);
+}`;
+            const results = await runDiagnosticRule(rule, code, testContext);
+
+            expect(results).toHaveLength(0);
+        });
+
+        it('should handle multiple parameters with mixed valid and invalid types', async () => {
+            const code = `
+void TakeMultiple(int a, string b, float c) {}
+
+void test() {
+    TakeMultiple(42, "correct", "wrong");
+}`;
+            const results = await runDiagnosticRule(rule, code, testContext);
+
+            expect(results).toHaveLength(1);
+            expectDiagnosticWithMessage(results, "Argument of type 'string' is not assignable to parameter of type 'float'");
+        });
+
+        it('should check vector parameter types', async () => {
+            const code = `
+void TakeVector(vector pos) {}
+
+void test() {
+    TakeVector("1 2 3");  // string to vector is allowed
+    TakeVector(42);       // int to vector is not allowed
+}`;
+            const results = await runDiagnosticRule(rule, code, testContext);
+
+            expect(results).toHaveLength(1);
+            expectDiagnosticWithMessage(results, "Argument of type 'int' is not assignable to parameter of type 'vector'");
+        });
+
+        it('should allow string to vector parameter conversion', async () => {
+            const code = `
+void TakeVector(vector pos) {}
+
+void test() {
+    TakeVector("1 2 3");
+}`;
+            const results = await runDiagnosticRule(rule, code, testContext);
+
+            expect(results).toHaveLength(0);
+        });
+
+        it('should handle auto parameter types', async () => {
+            const code = `
+void TakeAuto(auto value) {}
+
+void test() {
+    TakeAuto(42);
+    TakeAuto("text");
+    TakeAuto(3.14);
+}`;
+            const results = await runDiagnosticRule(rule, code, testContext);
+
+            expect(results).toHaveLength(0);
+        });
+
+        it('should check nested function call parameters', async () => {
+            const code = `
+int GetNumber() { return 42; }
+void TakeString(string text) {}
+
+void test() {
+    TakeString(GetNumber());
+}`;
+            const results = await runDiagnosticRule(rule, code, testContext);
+
+            expectDiagnosticWithMessage(results, "Argument of type 'int' is not assignable to parameter of type 'string'");
+        });
+
+        it('should handle method overloading and pick correct overload', async () => {
+            const code = `
+class ParamsReadContext {}
+
+class MyClass {
+    void Method(int arg1, ParamsReadContext arg2) {}
+    void Method(bool arg1, float arg2) {}
+    
+    void Test() {
+        Method(true, 0.5);
+    }
+}`;
+            const results = await runDiagnosticRule(rule, code, testContext);
+
+            // Should not report errors - the second overload matches (bool, float)
+            expect(results).toHaveLength(0);
+        });
+
+        it('should allow any type for void parameters (void parameter treated as any)', async () => {
+            const code = `
+proto bool Write(void value_out);
+
+void test() {
+    int x = 42;
+    string s = "hello";
+    Write(x);
+    Write(s);
+    Write(3.14);
+}`;
+            const results = await runDiagnosticRule(rule, code, testContext);
+
+            // void parameters should accept any argument type without errors
+            expect(results).toHaveLength(0);
+        });
+
+        it('should allow any type for typename parameters (typename parameter treated as any)', async () => {
+            const code = `
+proto bool ProcessValue(typename value);
+
+void test() {
+    int x = 42;
+    string s = "hello";
+    float f = 3.14;
+    ProcessValue(x);
+    ProcessValue(s);
+    ProcessValue(f);
+}`;
+            const results = await runDiagnosticRule(rule, code, testContext);
+
+            // typename parameters should accept any argument type without errors
+            expect(results).toHaveLength(0);
+        });
+
+        it('should handle expression arguments', async () => {
+            const code = `
+void TakeString(string text) {}
+
+void test() {
+    TakeString(1 + 2);
+}`;
+            const results = await runDiagnosticRule(rule, code, testContext);
+
+            expectDiagnosticWithMessage(results, "Argument of type 'int' is not assignable to parameter of type 'string'");
+        });
+
+        it('should check method call with this context', async () => {
+            const code = `
+class MyClass {
+    void TakeInt(int value) {}
+    
+    void Test() {
+        this.TakeInt("wrong");
+    }
+}`;
+            const results = await runDiagnosticRule(rule, code, testContext);
+
+            expectDiagnosticWithMessage(results, "Argument of type 'string' is not assignable to parameter of type 'int'");
+        });
     });
 
     describe('Binary Operation Type Mismatches', () => {

@@ -10,17 +10,16 @@ import {
     ASTNode,
     VarDeclNode,
     CallExpression,
-    Expression,
-    ClassDeclNode
+    Expression
 } from '../../ast';
 import {
     isAssignmentExpression,
     isVarDecl,
     isBinaryExpression,
     isCallExpression,
-    isFunction,
-    isMethod,
-    isReturnStatement
+    isReturnStatement,
+    isIdentifier,
+    isMemberExpression
 } from '../../util/ast-class-utils';
 import {
     AssignmentExpression,
@@ -30,10 +29,23 @@ import {
     MethodDeclNode
 } from '../../ast/node-types';
 import { Logger } from '../../../util/logger';
-import { extractTypeName } from '../../util/symbol-resolution-utils';
-import { isBuiltInType, extractBaseClassName, parseGenericType, isPrimitiveType, isPrimitiveBuiltInType } from '../../util/type-utils';
-
-/**
+import { 
+    extractTypeName, 
+    findContainingClass, 
+    findContainingFunctionOrMethod,
+    isClassDerivedFrom,
+    findFunctionInFile,
+    findAllMethodsInClass,
+    resolveMethodsFromMemberExpression
+} from '../../util/symbol-resolution-utils';
+import { 
+    parseGenericType, 
+    isPrimitiveType, 
+    isPrimitiveBuiltInType,
+    normalizeTypeName,
+    isGenericTypeParameter,
+    areNumericTypesCompatible
+} from '../../util/type-utils';/**
  * Rule for detecting type mismatches in assignments, returns, and function calls.
  * 
  * This rule checks for type compatibility in various contexts:
@@ -131,39 +143,10 @@ export class TypeMismatchRule extends BaseDiagnosticRule {
                 return results;
             }
 
-            // Special case: int to bool is allowed but should warn about truncation
-            if (targetType === 'bool' && valueType === 'int') {
-                results.push(
-                    this.createTypeMismatchDiagnostic(
-                        `Implicit conversion from '${valueType}' to 'bool' may truncate value`,
-                        node.right,
-                        DiagnosticSeverity.Warning
-                    )
-                );
-                return results;
-            }
-
-            // Special case: bool to int is allowed but should warn about implicit conversion
-            if (targetType === 'int' && valueType === 'bool') {
-                results.push(
-                    this.createTypeMismatchDiagnostic(
-                        `Implicit conversion from '${valueType}' to '${targetType}'`,
-                        node.right,
-                        DiagnosticSeverity.Warning
-                    )
-                );
-                return results;
-            }
-
-            // Special case: float to int is allowed but should warn about precision loss
-            if (targetType === 'int' && valueType === 'float') {
-                results.push(
-                    this.createTypeMismatchDiagnostic(
-                        `Implicit conversion from '${valueType}' to '${targetType}' may lose precision`,
-                        node.right,
-                        DiagnosticSeverity.Warning
-                    )
-                );
+            // Check for special implicit conversions
+            const conversionResult = this.checkImplicitConversion(targetType, valueType, node.right);
+            if (conversionResult) {
+                results.push(conversionResult);
                 return results;
             }
 
@@ -214,7 +197,7 @@ export class TypeMismatchRule extends BaseDiagnosticRule {
                 if (this.hasTypeModifier(node.type, 'ref')) {
                     return results;
                 }
-                
+
                 // null can be assigned to reference types (classes, arrays, etc.)
                 // but not to value types (int, float, bool, string, vector, void)
                 const targetBase = parseGenericType(declaredType).baseType;
@@ -230,39 +213,10 @@ export class TypeMismatchRule extends BaseDiagnosticRule {
                 return results;
             }
 
-            // Special case: int to bool is allowed but should warn about truncation
-            if (declaredType === 'bool' && initializerType === 'int') {
-                results.push(
-                    this.createTypeMismatchDiagnostic(
-                        `Implicit conversion from '${initializerType}' to 'bool' may truncate value`,
-                        node.initializer,
-                        DiagnosticSeverity.Warning
-                    )
-                );
-                return results;
-            }
-
-            // Special case: bool to int is allowed but should warn about implicit conversion
-            if (declaredType === 'int' && initializerType === 'bool') {
-                results.push(
-                    this.createTypeMismatchDiagnostic(
-                        `Implicit conversion from '${initializerType}' to '${declaredType}'`,
-                        node.initializer,
-                        DiagnosticSeverity.Warning
-                    )
-                );
-                return results;
-            }
-
-            // Special case: float to int is allowed but should warn about precision loss
-            if (declaredType === 'int' && initializerType === 'float') {
-                results.push(
-                    this.createTypeMismatchDiagnostic(
-                        `Implicit conversion from '${initializerType}' to '${declaredType}' may lose precision`,
-                        node.initializer,
-                        DiagnosticSeverity.Warning
-                    )
-                );
+            // Check for special implicit conversions
+            const conversionResult = this.checkImplicitConversion(declaredType, initializerType, node.initializer);
+            if (conversionResult) {
+                results.push(conversionResult);
                 return results;
             }
 
@@ -289,7 +243,7 @@ export class TypeMismatchRule extends BaseDiagnosticRule {
         const results: DiagnosticRuleResult[] = [];
 
         try {
-            const containingFunction = this.findContainingFunction(node);
+            const containingFunction = findContainingFunctionOrMethod(node);
             if (!containingFunction) {
                 Logger.debug('TypeMismatchRule: Return statement outside of function context');
                 return results;
@@ -326,33 +280,10 @@ export class TypeMismatchRule extends BaseDiagnosticRule {
                 return results;
             }
 
-            // Special case: int to bool is allowed but should warn about truncation
-            if (declaredReturnType === 'bool' && returnedType === 'int') {
-                results.push(this.createTypeMismatchDiagnostic(
-                    `Implicit conversion from '${returnedType}' to 'bool' may truncate value`,
-                    node.argument,
-                    DiagnosticSeverity.Warning
-                ));
-                return results;
-            }
-
-            // Special case: bool to int is allowed but should warn about implicit conversion
-            if (declaredReturnType === 'int' && returnedType === 'bool') {
-                results.push(this.createTypeMismatchDiagnostic(
-                    `Implicit conversion from '${returnedType}' to '${declaredReturnType}'`,
-                    node.argument,
-                    DiagnosticSeverity.Warning
-                ));
-                return results;
-            }
-
-            // Special case: float to int is allowed but should warn about precision loss
-            if (declaredReturnType === 'int' && returnedType === 'float') {
-                results.push(this.createTypeMismatchDiagnostic(
-                    `Implicit conversion from '${returnedType}' to '${declaredReturnType}' may lose precision`,
-                    node.argument,
-                    DiagnosticSeverity.Warning
-                ));
+            // Check for special implicit conversions
+            const conversionResult = this.checkImplicitConversion(declaredReturnType, returnedType, node.argument);
+            if (conversionResult) {
+                results.push(conversionResult);
                 return results;
             }
 
@@ -375,17 +306,196 @@ export class TypeMismatchRule extends BaseDiagnosticRule {
      * Check type mismatch in function calls (parameter types)
      */
     private async checkFunctionCall(
-        _node: CallExpression,
-        _context: DiagnosticRuleContext
+        node: CallExpression,
+        context: DiagnosticRuleContext
     ): Promise<DiagnosticRuleResult[]> {
-        // TODO: Implement function call parameter type checking
-        // 1. Resolve the function being called
-        // 2. Get the declared parameter types
-        // 3. Resolve the types of the arguments
-        // 4. Check if each argument type matches the parameter type
-        // 5. Generate diagnostics for mismatched arguments
+        const results: DiagnosticRuleResult[] = [];
 
-        return [];
+        try {
+            // Get the function/method declaration(s) - may have overloads
+            const functionDecls = await this.resolveFunctionDeclarations(node, context);
+            if (functionDecls.length === 0) {
+                return results;
+            }
+
+            // Pick the best matching overload based on argument types
+            const functionDecl = this.pickBestOverload(functionDecls, node.arguments, context);
+            if (!functionDecl || !functionDecl.parameters) {
+                return results;
+            }
+
+            const parameters = functionDecl.parameters;
+            const args = node.arguments;
+
+            // Check each argument against its corresponding parameter
+            const minLength = Math.min(parameters.length, args.length);
+            for (let i = 0; i < minLength; i++) {
+                const param = parameters[i];
+                const arg = args[i];
+
+                const paramType = extractTypeName(param.type);
+                if (!paramType || paramType === 'auto') {
+                    continue;
+                }
+
+                // Special case: void and typename parameters are treated as 'any' - accept any argument type
+                // void: used in functions like Write(void value_out) which accepts any type
+                // typename: used for type-agnostic parameters that can accept any type
+                if (paramType === 'void' || paramType === 'typename') {
+                    continue;
+                }
+
+                const argType = this.resolveExpressionType(arg, context);
+                if (!argType) {
+                    continue;
+                }
+
+                // Check for special implicit conversions
+                const conversionResult = this.checkImplicitConversion(paramType, argType, arg);
+                if (conversionResult) {
+                    results.push(conversionResult);
+                    continue;
+                }
+
+                // Check type compatibility
+                if (!this.isTypeCompatible(paramType, argType, context)) {
+                    results.push(
+                        this.createTypeMismatchDiagnostic(
+                            `Argument of type '${argType}' is not assignable to parameter of type '${paramType}'`,
+                            arg,
+                            DiagnosticSeverity.Error
+                        )
+                    );
+                }
+            }
+
+            // Check if too many arguments provided (only if no variadic parameters)
+            // Note: EnScript may support variadic parameters, but we don't check for that here
+            // This is a simple check that can be enhanced later
+
+        } catch (error) {
+            Logger.error(`TypeMismatchRule: Error checking function call: ${error}`);
+        }
+
+        return results;
+    }
+
+    /**
+     * Check for implicit conversions that should generate warnings
+     * @returns DiagnosticRuleResult if a warning should be generated, null otherwise
+     */
+    private checkImplicitConversion(
+        targetType: string,
+        sourceType: string,
+        node: ASTNode
+    ): DiagnosticRuleResult | null {
+        // int to bool conversion
+        if (targetType === 'bool' && sourceType === 'int') {
+            return this.createTypeMismatchDiagnostic(
+                `Implicit conversion from '${sourceType}' to 'bool' may truncate value`,
+                node,
+                DiagnosticSeverity.Warning
+            );
+        }
+
+        // bool to int conversion
+        if (targetType === 'int' && sourceType === 'bool') {
+            return this.createTypeMismatchDiagnostic(
+                `Implicit conversion from '${sourceType}' to '${targetType}'`,
+                node,
+                DiagnosticSeverity.Warning
+            );
+        }
+
+        // float to int conversion
+        if (targetType === 'int' && sourceType === 'float') {
+            return this.createTypeMismatchDiagnostic(
+                `Implicit conversion from '${sourceType}' to '${targetType}' may lose precision`,
+                node,
+                DiagnosticSeverity.Warning
+            );
+        }
+
+        return null;
+    }
+
+    /**
+     * Resolve all function or method declarations for a call expression (handles overloading)
+     */
+    private async resolveFunctionDeclarations(
+        node: CallExpression,
+        context: DiagnosticRuleContext
+    ): Promise<(FunctionDeclNode | MethodDeclNode)[]> {
+        const results: (FunctionDeclNode | MethodDeclNode)[] = [];
+
+        try {
+            // Handle direct function calls (callee is an Identifier)
+            if (isIdentifier(node.callee)) {
+                const funcName = node.callee.name;
+
+                // Check if we're inside a class - might be a method call
+                const containingClass = findContainingClass(node, context.ast);
+                if (containingClass) {
+                    // Look for all methods in the class (handles overloading)
+                    const methods = findAllMethodsInClass(
+                        containingClass, 
+                        funcName, 
+                        { 
+                            document: context.document, 
+                            typeResolver: context.typeResolver 
+                        }
+                    );
+                    results.push(...methods);
+                    if (results.length > 0) {
+                        return results;
+                    }
+                }
+
+                // Check for global function in current file
+                const fileFunc = findFunctionInFile(funcName, context.ast);
+                if (fileFunc) {
+                    results.push(fileFunc);
+                }
+
+                // Check for global function across workspace using typeResolver
+                if (context.typeResolver) {
+                    const globalFuncs = context.typeResolver.findAllGlobalFunctionDefinitions(funcName);
+                    results.push(...globalFuncs);
+                }
+
+                return results;
+            }
+
+            // Handle method calls (callee is a MemberExpression)
+            if (isMemberExpression(node.callee)) {
+                const methods = await resolveMethodsFromMemberExpression(
+                    node.callee,
+                    context.ast,
+                    { 
+                        document: context.document, 
+                        typeResolver: context.typeResolver 
+                    }
+                );
+                results.push(...methods);
+            }
+
+        } catch (error) {
+            Logger.debug(`TypeMismatchRule: Error resolving function declarations: ${error}`);
+        }
+
+        return results;
+    }
+
+    /**
+     * Resolve the function or method declaration for a call expression
+     * @deprecated Use resolveFunctionDeclarations for overload support
+     */
+    private async resolveFunctionDeclaration(
+        node: CallExpression,
+        context: DiagnosticRuleContext
+    ): Promise<FunctionDeclNode | MethodDeclNode | null> {
+        const decls = await this.resolveFunctionDeclarations(node, context);
+        return decls.length > 0 ? decls[0] : null;
     }
 
     private async checkBinaryOperation(
@@ -498,6 +608,66 @@ export class TypeMismatchRule extends BaseDiagnosticRule {
         return results;
     }
 
+    /**
+     * Pick the best matching overload based on argument types
+     * Returns the first overload where all arguments match their parameter types
+     */
+    private pickBestOverload(
+        overloads: (FunctionDeclNode | MethodDeclNode)[],
+        args: Expression[],
+        context: DiagnosticRuleContext
+    ): FunctionDeclNode | MethodDeclNode | null {
+        if (overloads.length === 0) {
+            return null;
+        }
+
+        if (overloads.length === 1) {
+            return overloads[0];
+        }
+
+        // Try to find an overload where all parameters match
+        for (const overload of overloads) {
+            if (!overload.parameters) {
+                continue;
+            }
+
+            // Check if parameter count matches (considering that all parameters might be optional in EnScript)
+            if (args.length > overload.parameters.length) {
+                continue; // Too many arguments
+            }
+
+            // Check if all argument types match the parameter types
+            let allMatch = true;
+            for (let i = 0; i < args.length; i++) {
+                const param = overload.parameters[i];
+                const arg = args[i];
+
+                const paramType = extractTypeName(param.type);
+                if (!paramType || paramType === 'auto' || paramType === 'void' || paramType === 'typename') {
+                    continue; // These accept any type
+                }
+
+                const argType = this.resolveExpressionType(arg, context);
+                if (!argType) {
+                    continue; // Can't determine type, skip check
+                }
+
+                // Check if types are compatible
+                if (!this.isTypeCompatible(paramType, argType, context)) {
+                    allMatch = false;
+                    break;
+                }
+            }
+
+            if (allMatch) {
+                return overload;
+            }
+        }
+
+        // If no perfect match, return the first overload
+        return overloads[0];
+    }
+
     private isNumericType(type: string): boolean {
         return ['int', 'float'].includes(type);
     }
@@ -532,8 +702,8 @@ export class TypeMismatchRule extends BaseDiagnosticRule {
             return true;
         }
 
-        const normalizedTarget = this.normalizeTypeName(targetType);
-        const normalizedSource = this.normalizeTypeName(sourceType);
+        const normalizedTarget = normalizeTypeName(targetType);
+        const normalizedSource = normalizeTypeName(sourceType);
 
         if (normalizedTarget === normalizedSource) {
             return true;
@@ -582,138 +752,22 @@ export class TypeMismatchRule extends BaseDiagnosticRule {
         // Check if either type is a generic type parameter (e.g., T, TValue, TKey)
         // Generic type parameters should be considered compatible with any type
         // as they will be resolved at instantiation time
-        if (this.isGenericTypeParameter(normalizedTarget) || this.isGenericTypeParameter(normalizedSource)) {
+        if (isGenericTypeParameter(normalizedTarget) || isGenericTypeParameter(normalizedSource)) {
             return true;
         }
 
         const targetBase = parseGenericType(normalizedTarget).baseType;
         const sourceBase = parseGenericType(normalizedSource).baseType;
-        if (this.areNumericTypesCompatible(targetBase, sourceBase)) {
+        if (areNumericTypesCompatible(targetBase, sourceBase)) {
             return true;
         }
 
-        if (this.isClassDerivedFrom(sourceBase, targetBase, context)) {
+        if (isClassDerivedFrom(sourceBase, targetBase, context)) {
             return true;
         }
 
         if (this.areGenericTypesCompatible(normalizedTarget, normalizedSource, context)) {
             return true;
-        }
-
-        return false;
-    }
-
-    /**
-     * Check if a type name represents a generic type parameter
-     * Generic parameters typically:
-     * - Start with 'T' followed by uppercase (TValue, TKey, TData)
-     * - Are single uppercase letters (T, K, V)
-     * - Start with 'Class' (legacy EnScript syntax)
-     */
-    private isGenericTypeParameter(typeName: string): boolean {
-        // Remove any 'Class' prefix (EnScript generic syntax)
-        const cleanType = typeName.replace(/^Class\s+/, '').trim();
-
-        // Single uppercase letter (T, K, V, etc.)
-        if (/^[A-Z]$/.test(cleanType)) {
-            return true;
-        }
-
-        // Starts with T followed by uppercase (TValue, TKey, TData, etc.)
-        if (/^T[A-Z][a-zA-Z]*$/.test(cleanType)) {
-            return true;
-        }
-
-        return false;
-    }
-
-    private normalizeTypeName(typeName: string): string {
-        let normalized = extractBaseClassName(typeName);
-        normalized = normalized.replace(/\s*<\s*/g, '<');
-        normalized = normalized.replace(/\s*>\s*/g, '>');
-        normalized = normalized.replace(/\s*,\s*/g, ',');
-
-        return normalized.trim();
-    }
-
-    private areNumericTypesCompatible(targetType: string, sourceType: string): boolean {
-        const numericTypes = ['int', 'float'];
-
-        if (!numericTypes.includes(targetType) || !numericTypes.includes(sourceType)) {
-            return false;
-        }
-
-        if (targetType === 'float' && sourceType === 'int') {
-            return true;
-        }
-
-        return false;
-    }
-
-    private isClassDerivedFrom(
-        sourceClass: string,
-        targetClass: string,
-        context: DiagnosticRuleContext
-    ): boolean {
-        if (!context.typeResolver) {
-            return false;
-        }
-
-        if (sourceClass === targetClass) {
-            return true;
-        }
-
-        if (isBuiltInType(sourceClass) || isBuiltInType(targetClass)) {
-            return false;
-        }
-
-        try {
-            const sourceClassDefs = context.typeResolver.findAllClassDefinitions(sourceClass);
-            if (sourceClassDefs.length === 0) {
-                return false;
-            }
-
-            for (const classDef of sourceClassDefs) {
-                if (this.checkInheritanceChain(classDef, targetClass, context, new Set())) {
-                    return true;
-                }
-            }
-        } catch (error) {
-            Logger.debug(`TypeMismatchRule: Error checking class inheritance: ${error}`);
-        }
-
-        return false;
-    }
-
-    private checkInheritanceChain(
-        classDef: ClassDeclNode,
-        targetClass: string,
-        context: DiagnosticRuleContext,
-        visited: Set<string>
-    ): boolean {
-        if (visited.has(classDef.name)) {
-            return false;
-        }
-        visited.add(classDef.name);
-
-        if (!classDef.baseClass || !context.typeResolver) {
-            return false;
-        }
-
-        const baseClassName = extractTypeName(classDef.baseClass);
-        if (!baseClassName) {
-            return false;
-        }
-
-        if (baseClassName === targetClass) {
-            return true;
-        }
-
-        const baseClassDefs = context.typeResolver.findAllClassDefinitions(baseClassName);
-        for (const baseClassDef of baseClassDefs) {
-            if (this.checkInheritanceChain(baseClassDef, targetClass, context, visited)) {
-                return true;
-            }
         }
 
         return false;
@@ -758,28 +812,17 @@ export class TypeMismatchRule extends BaseDiagnosticRule {
         return true;
     }
 
-    private findContainingFunction(node: ASTNode): FunctionDeclNode | MethodDeclNode | null {
-        let current: ASTNode | undefined = node.parent;
-        while (current) {
-            if (isFunction(current) || isMethod(current)) {
-                return current as FunctionDeclNode | MethodDeclNode;
-            }
-            current = current.parent;
-        }
-        return null;
-    }
-
     /**
      * Check if a type node has a specific modifier (e.g., 'ref', 'owned')
      */
     private hasTypeModifier(typeNode: ASTNode, modifier: string): boolean {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const typeNodeAny = typeNode as any;
-        
+
         if ('modifiers' in typeNodeAny && Array.isArray(typeNodeAny.modifiers)) {
             return typeNodeAny.modifiers.includes(modifier);
         }
-        
+
         return false;
     }
 

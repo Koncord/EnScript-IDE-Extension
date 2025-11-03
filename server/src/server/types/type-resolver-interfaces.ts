@@ -85,4 +85,10 @@ export interface ITypeResolver {
      * Resolve expression type using AST structure
      */
     resolveExpressionType(expr: Expression, context: FileNode, doc?: TextDocument): string | null;
+
+    /**
+     * Resolve typedef to its underlying class type name
+     * E.g., "InventoryItemSuper" -> "ItemBase"
+     */
+    resolveTypedefToClassName(typedefName: string): string | null;
 }

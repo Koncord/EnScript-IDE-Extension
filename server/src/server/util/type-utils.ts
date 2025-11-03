@@ -221,3 +221,74 @@ export function isPrimitiveType(typeName: string): boolean {
 
     return isPrimitiveBuiltInType(withoutGenerics);
 }
+
+/**
+ * Normalize a type name by removing extra whitespace around generic brackets
+ * 
+ * @example
+ * normalizeTypeName("array < int >") // => "array<int>"
+ * normalizeTypeName("map<string , int>") // => "map<string,int>"
+ * normalizeTypeName("ref PlayerBase") // => "PlayerBase"
+ */
+export function normalizeTypeName(typeName: string): string {
+    let normalized = extractBaseClassName(typeName);
+    normalized = normalized.replace(/\s*<\s*/g, '<');
+    normalized = normalized.replace(/\s*>\s*/g, '>');
+    normalized = normalized.replace(/\s*,\s*/g, ',');
+
+    return normalized.trim();
+}
+
+/**
+ * Check if a type name represents a generic type parameter
+ * Generic parameters typically:
+ * - Start with 'T' followed by uppercase (TValue, TKey, TData)
+ * - Are single uppercase letters (T, K, V)
+ * - Start with 'Class' (legacy EnScript syntax)
+ * 
+ * @example
+ * isGenericTypeParameter("T") // => true
+ * isGenericTypeParameter("TValue") // => true
+ * isGenericTypeParameter("Class T") // => true
+ * isGenericTypeParameter("PlayerBase") // => false
+ */
+export function isGenericTypeParameter(typeName: string): boolean {
+    // Remove any 'Class' prefix (EnScript generic syntax)
+    const cleanType = typeName.replace(/^Class\s+/, '').trim();
+
+    // Single uppercase letter (T, K, V, etc.)
+    if (/^[A-Z]$/.test(cleanType)) {
+        return true;
+    }
+
+    // Starts with T followed by uppercase (TValue, TKey, TData, etc.)
+    if (/^T[A-Z][a-zA-Z]*$/.test(cleanType)) {
+        return true;
+    }
+
+    return false;
+}
+
+/**
+ * Check if two numeric types are compatible (considering implicit conversions)
+ * In EnScript, int can be implicitly converted to float
+ * 
+ * @example
+ * areNumericTypesCompatible("float", "int") // => true (int -> float)
+ * areNumericTypesCompatible("int", "float") // => false (requires explicit cast)
+ * areNumericTypesCompatible("int", "int") // => false (use direct equality check)
+ */
+export function areNumericTypesCompatible(targetType: string, sourceType: string): boolean {
+    const numericTypes = ['int', 'float'];
+
+    if (!numericTypes.includes(targetType) || !numericTypes.includes(sourceType)) {
+        return false;
+    }
+
+    // int can be implicitly converted to float
+    if (targetType === 'float' && sourceType === 'int') {
+        return true;
+    }
+
+    return false;
+}

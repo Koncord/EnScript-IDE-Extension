@@ -42,7 +42,7 @@ import {
 } from '../util/ast-class-utils';
 import { parseGenericType } from '../util/type-utils';
 import { isMethod, isFunction, isClass, findMemberInClassWithInheritance } from '../util/ast-class-utils';
-import { extractTypeName } from '../util/symbol-resolution-utils';
+import { extractTypeName, findContainingFunctionOrMethod } from '../util/symbol-resolution-utils';
 import { ISymbolCacheManager } from '../cache/symbol-cache-manager-interfaces';
 import { ITypeCache } from '../cache/type-cache';
 import { IWorkspaceManager } from '../workspace/workspace-interfaces';
@@ -685,10 +685,10 @@ export class TypeResolver implements ITypeResolver {
      * Try to resolve auto variable by finding assignments in AST
      */
     private tryResolveAutoFromAST(varNode: VarDeclNode, doc: TextDocument): string | null {
-        const ast = this.ensureDocumentParsed(doc);
+        this.ensureDocumentParsed(doc);
 
         // Find the function or class containing this variable
-        const containingFunction = this.findContainingFunction(varNode, ast);
+        const containingFunction = findContainingFunctionOrMethod(varNode);
         if (containingFunction && isBlockStatement(containingFunction.body)) {
             return this.resolveAutoVariableFromAST(varNode, containingFunction.body, doc);
         }
@@ -1057,21 +1057,6 @@ export class TypeResolver implements ITypeResolver {
             if (isVarDecl(decl) && decl.name === varName) {
                 return decl;
             }
-        }
-        return null;
-    }
-
-    /**
-     * Find the function containing a variable declaration
-     */
-    private findContainingFunction(varNode: VarDeclNode, _ast: FileNode): FunctionDeclNode | MethodDeclNode | null {
-        // Walk up the AST parent chain to find the containing function/method
-        let current: ASTNode | undefined = varNode.parent;
-        while (current) {
-            if (isFunction(current) || isMethod(current)) {
-                return current as FunctionDeclNode | MethodDeclNode;
-            }
-            current = current.parent;
         }
         return null;
     }
