@@ -108,14 +108,14 @@ export abstract class UndeclaredEntityRule extends BaseDiagnosticRule {
 
         // Compute and cache result
         const result = isEnumNameUtil(name, context.ast, context.typeResolver);
-        
+
         if (context.sharedCache) {
             if (!context.sharedCache.enumNameCache) {
                 context.sharedCache.enumNameCache = new Map();
             }
             context.sharedCache.enumNameCache.set(name, result);
         }
-        
+
         return result;
     }
 
@@ -145,14 +145,14 @@ export abstract class UndeclaredEntityRule extends BaseDiagnosticRule {
             loadClassFromIncludePaths: context.loadClassFromIncludePaths,
             openedDocumentUris: context.openedDocumentUris
         };
-        
+
         const result = await tryLoadClassFromIncludesUtil(className, resolveContext);
-        
+
         // Cache the result
         if (context.sharedCache?.classDefinitionsCache) {
             context.sharedCache.classDefinitionsCache.set(className, result);
         }
-        
+
         return result;
     }
 
@@ -288,14 +288,14 @@ ${examples.good}
 
         // Compute and cache result
         const result = findContainingClassUtil(node, context.ast);
-        
+
         if (context.sharedCache) {
             if (!context.sharedCache.containingClassCache) {
                 context.sharedCache.containingClassCache = new Map();
             }
             context.sharedCache.containingClassCache.set(node, result);
         }
-        
+
         return result;
     }
 
@@ -313,7 +313,7 @@ ${examples.good}
             // Move to parent
             current = current.parent;
         }
-        
+
         return false; // Not in a method, or in a non-static method
     }
 
@@ -603,7 +603,7 @@ ${examples.good}
 
         // Compute result
         const result = await this.resolveExpressionTypeImpl(objectExpr, position, context);
-        
+
         // Cache result
         if (context.sharedCache) {
             if (!context.sharedCache.expressionTypeCache) {
@@ -611,7 +611,7 @@ ${examples.good}
             }
             context.sharedCache.expressionTypeCache.set(objectExpr, result);
         }
-        
+
         return result;
     }
 
@@ -631,20 +631,20 @@ ${examples.good}
         // Simple identifier (e.g., obj in obj.method())
         if (isIdentifier(objectExpr)) {
             const objectName = objectExpr.name;
-            
+
             // Check if it's a class name (for static member access)
             const classDefinitions = context.typeResolver.findAllClassDefinitions(objectName);
             if (classDefinitions.length > 0) {
                 Logger.debug(`✅ '${objectName}' is a class name (static access)`);
                 return { typeName: objectName, isStaticAccess: true, isSuperAccess: false };
             }
-            
+
             // Check if it's an enum name (for enum member access)
             if (this.isEnumName(objectName, context)) {
                 Logger.debug(`✅ '${objectName}' is an enum name (static access)`);
                 return { typeName: objectName, isStaticAccess: true, isSuperAccess: false };
             }
-            
+
             // Resolve as variable/object (instance access)
             const lspPosition = { line: position.line, character: position.character };
             const resolvedType = this.safeResolveObjectType(objectName, lspPosition, context);
@@ -677,9 +677,9 @@ ${examples.good}
 
             // Determine if this is a modded class
             const isModdedClass = containingClass.modifiers?.includes('modded') || false;
-            
+
             let baseClassName: string | null = null;
-            
+
             if (isModdedClass) {
                 // Modded class scenario:
                 // modded class PlayerBase { override void Init() { super.Init(); } }
@@ -758,13 +758,13 @@ ${examples.good}
         // Simple function call (e.g., GetGame() or GetSomeClass())
         if (isIdentifier(callee)) {
             const functionName = callee.name;
-            
+
             // First, check if this is an implicit method call on 'this' (within a class context)
             // For example: GetSomeClass() inside a method of AnotherClass is actually this.GetSomeClass()
             const containingClass = this.findContainingClass(callExpr, context);
             if (containingClass) {
                 Logger.debug(`🔍 Checking if '${functionName}' is a method on containing class '${containingClass.name}'`);
-                
+
                 // Check if this function name is actually a method of the current class
                 const classHasMember = await this.findMemberInClassHierarchy(
                     containingClass.name,
@@ -773,14 +773,14 @@ ${examples.good}
                     context,
                     true  // allow private
                 ) !== null;
-                
+
                 if (classHasMember) {
                     // This is an implicit 'this.functionName()' call
                     Logger.debug(`🔍 '${functionName}' is an instance method on '${containingClass.name}' - resolving as implicit this call`);
                     return await this.resolveMethodReturnTypeFromClass(containingClass.name, functionName, context);
                 }
             }
-            
+
             // Not an instance method - try as global function
             const returnType = context.typeResolver.getGlobalFunctionReturnType(functionName, context.document);
             Logger.debug(`🔍 Function '${functionName}' return type: ${returnType}`);
@@ -818,7 +818,7 @@ ${examples.good}
             includePaths: context.includePaths,
             loadClassFromIncludePaths: context.loadClassFromIncludePaths
         };
-        
+
         return await resolvePropertyTypeUtil(className, propertyName, resolveContext);
     }
 
@@ -836,7 +836,7 @@ ${examples.good}
             includePaths: context.includePaths,
             loadClassFromIncludePaths: context.loadClassFromIncludePaths
         };
-        
+
         return await resolveMethodReturnTypeUtil(className, methodName, resolveContext);
     }
 

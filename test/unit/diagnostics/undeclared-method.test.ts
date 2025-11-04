@@ -23,14 +23,23 @@ describe('UndeclaredMethodRule', () => {
     beforeEach(() => {
         testContext = setupDiagnosticTestContainer();
         rule = new UndeclaredMethodRule();
-        
+
         // Load built-in string class fixture
         const stringFixturePath = join(__dirname, '../../fixtures/builtin_string.c');
         const stringFixtureContent = readFileSync(stringFixturePath, 'utf-8');
         parseAndRegisterDocument(
-            stringFixtureContent, 
-            testContext.docCacheManager, 
+            stringFixtureContent,
+            testContext.docCacheManager,
             'test://builtin_string.c'
+        );
+
+        // Load SDK base fixture (includes Class base with Cast method)
+        const sdkBasePath = join(__dirname, '../../fixtures/sdk_base.c');
+        const sdkBaseContent = readFileSync(sdkBasePath, 'utf-8');
+        parseAndRegisterDocument(
+            sdkBaseContent,
+            testContext.docCacheManager,
+            'test://sdk_base.c'
         );
     });
     describe('Static/Instance Method Access', () => {
@@ -44,7 +53,7 @@ void TestFunction() {
     TestClass.StaticMethod();
 }`;
             const results = await runDiagnosticRule(rule, code, testContext);
-            
+
             // Should not have any diagnostics for StaticMethod
             expectNoDiagnosticWithMessage(results, 'StaticMethod');
         });
@@ -60,7 +69,7 @@ void TestFunction() {
     obj.InstanceMethod();
 }`;
             const results = await runDiagnosticRule(rule, code, testContext);
-            
+
             // Should not have any diagnostics for InstanceMethod
             expectNoDiagnosticWithMessage(results, 'InstanceMethod');
         });
@@ -76,7 +85,7 @@ void TestFunction() {
     obj.StaticMethod(); // Static mismatch handled by StaticInstanceMismatchRule
 }`;
             const results = await runDiagnosticRule(rule, code, testContext);
-            
+
             // UndeclaredMethodRule should not report this - StaticInstanceMismatchRule will
             expectNoDiagnosticWithMessage(results, 'StaticMethod');
         });
@@ -93,7 +102,7 @@ void TestFunction() {
     float max = TestClass.MAX_VALUE;
 }`;
             const results = await runDiagnosticRule(rule, code, testContext);
-            
+
             // Const members are implicitly static
             expectNoDiagnosticWithMessage(results, 'MAX_VALUE');
         });
@@ -110,7 +119,7 @@ class TestClass {
     }
 }`;
             const results = await runDiagnosticRule(rule, code, testContext);
-            
+
             // Should not have diagnostics for PrivateMethod when called from within class
             expectNoDiagnosticWithMessage(results, 'PrivateMethod');
         });
@@ -126,7 +135,7 @@ void TestFunction() {
     obj.PrivateMethod();
 }`;
             const results = await runDiagnosticRule(rule, code, testContext);
-            
+
             // Should have diagnostic about private method access
             expectDiagnosticWithMessage(results, 'PrivateMethod');
         });
@@ -144,7 +153,7 @@ void TestFunction() {
     obj.UndeclaredMethod();
 }`;
             const results = await runDiagnosticRule(rule, code, testContext);
-            
+
             expectDiagnosticWithMessage(results, 'UndeclaredMethod');
         });
 
@@ -159,7 +168,7 @@ void TestFunction() {
     obj.DeclaredMethod();
 }`;
             const results = await runDiagnosticRule(rule, code, testContext);
-            
+
             // Should not have diagnostics for DeclaredMethod
             expectNoDiagnosticWithMessage(results, 'DeclaredMethod');
         });
@@ -174,7 +183,7 @@ void TestFunction() {
     int size = arr.Count();
 }`;
             const results = await runDiagnosticRule(rule, code, testContext);
-            
+
             // Built-in methods should not be flagged as undeclared
             expectNoDiagnosticWithMessage(results, 'Insert');
             expectNoDiagnosticWithMessage(results, 'Count');
@@ -188,7 +197,7 @@ void TestFunction() {
     string upper = str.ToUpper();
 }`;
             const results = await runDiagnosticRule(rule, code, testContext);
-            
+
             // Built-in methods should not be flagged as undeclared
             expectNoDiagnosticWithMessage(results, 'Length');
             expectNoDiagnosticWithMessage(results, 'ToUpper');
@@ -211,7 +220,7 @@ void TestFunction() {
     obj.ChainMethod().FinalMethod();
 }`;
             const results = await runDiagnosticRule(rule, code, testContext);
-            
+
             // Should not have diagnostics for properly chained methods
             expectNoDiagnosticWithMessage(results, 'ChainMethod');
             expectNoDiagnosticWithMessage(results, 'FinalMethod');
@@ -231,7 +240,7 @@ class DerivedClass extends BaseClass {
     }
 }`;
             const results = await runDiagnosticRule(rule, code, testContext);
-            
+
             // Should not have diagnostics for super.BaseMethod()
             expectNoDiagnosticWithMessage(results, 'BaseMethod');
         });
@@ -254,7 +263,7 @@ class DerivedClass extends BaseClass {
     }
 }`;
             const results = await runDiagnosticRule(rule, code, testContext);
-            
+
             // Should not have diagnostics for super.OriginalMethod()
             // because it checks the original BaseClass, not the modded one
             expectNoDiagnosticWithMessage(results, 'OriginalMethod');
@@ -274,7 +283,7 @@ class DerivedClass extends BaseClass {
     }
 }`;
             const results = await runDiagnosticRule(rule, code, testContext);
-            
+
             // Should not have diagnostics for inherited BaseMethod
             expectNoDiagnosticWithMessage(results, 'BaseMethod');
         });
@@ -291,9 +300,62 @@ class DerivedClass extends BaseClass {
     }
 }`;
             const results = await runDiagnosticRule(rule, code, testContext);
-            
+
             // Should not have diagnostics for inherited static method
             expectNoDiagnosticWithMessage(results, 'BaseStaticMethod');
+        });
+    });
+
+    describe('Static Cast Method Type Resolution', () => {
+        it('should resolve Cast return type to calling class for direct member access', async () => {
+            const code = `
+class TestClass {
+    void Method(Man man) {
+        PlayerBase.Cast(man).m_ActionQBControl = true;
+        DayZPlayer.Cast(man).m_ActionQBControl = true;
+    }
+}`;
+            const results = await runDiagnosticRule(rule, code, testContext);
+
+            // Cast should return the calling class type, allowing access to its members
+            expectNoDiagnosticWithMessage(results, 'm_ActionQBControl');
+        });
+
+        it('should resolve Cast return type when assigned to variable', async () => {
+            const code = `
+class TestClass {
+    void Method(Man man) {
+        auto player = PlayerBase.Cast(man);
+        player.m_ActionQBControl = true;
+    }
+}`;
+            const results = await runDiagnosticRule(rule, code, testContext);
+
+            expectNoDiagnosticWithMessage(results, 'm_ActionQBControl');
+        });
+
+        it('should handle nested Cast calls', async () => {
+            const code = `
+class TestClass {
+    void Method(Entity entity) {
+        DayZPlayer.Cast(PlayerBase.Cast(entity)).m_ActionQBControl = true;
+    }
+}`;
+            const results = await runDiagnosticRule(rule, code, testContext);
+
+            expectNoDiagnosticWithMessage(results, 'm_ActionQBControl');
+        });
+
+        it('should detect incorrect member access after Cast', async () => {
+            const code = `
+class TestClass {
+    void Method(Man man) {
+        PlayerBase.Cast(man).m_NonExistentMember = true;
+    }
+}`;
+            const results = await runDiagnosticRule(rule, code, testContext);
+
+            expectDiagnosticWithMessage(results, "Method 'm_NonExistentMember' is not declared");
         });
     });
 });

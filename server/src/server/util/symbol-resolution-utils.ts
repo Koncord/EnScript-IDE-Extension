@@ -4,23 +4,23 @@
  */
 
 import { TextDocument } from 'vscode-languageserver-textdocument';
-import { 
-    ClassDeclNode, 
-    FunctionDeclNode, 
-    VarDeclNode, 
-    Declaration, 
+import {
+    ClassDeclNode,
+    FunctionDeclNode,
+    VarDeclNode,
+    Declaration,
     ASTNode,
     FileNode,
     TypeNode,
     MethodDeclNode,
     MemberExpression
 } from '../ast';
-import { 
-    isClass, 
-    isEnum, 
-    isTypedef, 
-    isFunction, 
-    isMethod, 
+import {
+    isClass,
+    isEnum,
+    isTypedef,
+    isFunction,
+    isMethod,
     isVarDecl,
     findMemberInClassWithInheritance,
     isStaticDeclaration,
@@ -205,7 +205,7 @@ export function isLikelyIncompleteStub(
             const sourceUri = classDef.uri;
             return sourceUri && openedDocumentUris.has(sourceUri);
         });
-        
+
         if (isAnyDefinitionInOpenedFile) {
             return false;
         }
@@ -276,8 +276,8 @@ export async function tryLoadClassFromIncludes(
     } else {
         // We have definitions, but check if they might be incomplete stubs
         const isLikelyStub = isLikelyIncompleteStub(
-            className, 
-            classDefinitions, 
+            className,
+            classDefinitions,
             context.includePaths || [],
             context.openedDocumentUris
         );
@@ -422,7 +422,7 @@ export async function findMemberInClassHierarchy(
             const isModded = classDef.modifiers?.includes('modded') || false;
             return !isModded;
         });
-        
+
         // If we only have modded definitions, try loading the original from include paths first
         if (!hasNonModdedDefinition && context.includePaths && context.includePaths.length > 0 && context.loadClassFromIncludePaths) {
             Logger.debug(`🔍 Only modded classes found for '${baseClassName}', attempting to load original from include paths...`);
@@ -434,13 +434,13 @@ export async function findMemberInClassHierarchy(
                 Logger.warn(`Failed to load class '${baseClassName}' from include paths:`, error);
             }
         }
-        
+
         // Now filter to keep only non-modded classes
         classDefinitions = classDefinitions.filter(classDef => {
             const isModded = classDef.modifiers?.includes('modded') || false;
             return !isModded;
         });
-        
+
         if (classDefinitions.length === 0) {
             Logger.warn(`🔍 No non-modded class definitions found for '${baseClassName}' after filtering and include path loading`);
             return null;
@@ -451,25 +451,25 @@ export async function findMemberInClassHierarchy(
     for (const classDef of classDefinitions) {
         // Check all members with matching name (to handle overloads)
         const allMatchingMembers: Declaration[] = [];
-        
+
         // Collect all members with the matching name from the class and its hierarchy
         const collectMembers = async (currentClass: ClassDeclNode, visited: Set<string> = new Set()) => {
             if (visited.has(currentClass.name)) {
                 return;
             }
             visited.add(currentClass.name);
-            
+
             // Collect from current class
             for (const member of currentClass.members) {
                 if (member.name === memberName) {
-                    const isPrivate = isStaticDeclaration(member) ? false : 
-                                     member.modifiers?.includes('private') || false;
+                    const isPrivate = isStaticDeclaration(member) ? false :
+                        member.modifiers?.includes('private') || false;
                     if (!isPrivate || allowPrivate) {
                         allMatchingMembers.push(member);
                     }
                 }
             }
-            
+
             // Recurse to base class - use tryLoadClassFromIncludes to handle stubs correctly
             if (currentClass.baseClass && context.typeResolver) {
                 const baseClassName = extractTypeName(currentClass.baseClass);
@@ -482,28 +482,28 @@ export async function findMemberInClassHierarchy(
                 }
             }
         };
-        
+
         await collectMembers(classDef);
-        
+
         if (allMatchingMembers.length === 0) {
             continue;
         }
-        
+
         // Check if any member matches the static/instance requirement
         let exactMatch: Declaration | null = null;
         let mismatchMember: Declaration | null = null;
-        
+
         for (const member of allMatchingMembers) {
             const isMemberMatch = (isMethod(member) || isVarDecl(member));
             if (!isMemberMatch) {
                 continue;
             }
-            
+
             // Determine if member is static
             const hasStaticModifier = isStaticDeclaration(member);
             const hasConstModifier = isConstDeclaration(member);
             const memberIsStatic = hasStaticModifier || hasConstModifier;
-            
+
             // Check if this member matches the static/instance requirement
             if (isStatic === memberIsStatic) {
                 exactMatch = member;
@@ -513,12 +513,12 @@ export async function findMemberInClassHierarchy(
                 mismatchMember = member;
             }
         }
-        
+
         // If we found an exact match, return it (no mismatch)
         if (exactMatch) {
             const uri = exactMatch.uri || classDef.uri || '';
             Logger.info(`🔍 Found member '${memberName}' in class '${classDef.name}' at ${uri}`);
-            
+
             return {
                 member: exactMatch,
                 uri,
@@ -526,7 +526,7 @@ export async function findMemberInClassHierarchy(
                 staticMismatch: false
             };
         }
-        
+
         // If we only found mismatched members, return the first one with mismatch flag
         if (mismatchMember) {
             const memberIsStatic = isStaticDeclaration(mismatchMember) || isConstDeclaration(mismatchMember);
@@ -535,10 +535,10 @@ export async function findMemberInClassHierarchy(
             } else {
                 Logger.debug(`🔍 Found '${memberName}' - looking for instance but found static member (mismatch)`);
             }
-            
+
             const uri = mismatchMember.uri || classDef.uri || '';
             Logger.info(`🔍 Found member '${memberName}' in class '${classDef.name}' at ${uri} (static mismatch)`);
-            
+
             return {
                 member: mismatchMember,
                 uri,
@@ -638,7 +638,7 @@ function resolveBuiltInMethodReturnType(
                 default:
                     return null;
             }
-        
+
         case 'map':
             switch (methodName) {
                 case 'Get':
@@ -659,7 +659,7 @@ function resolveBuiltInMethodReturnType(
                 default:
                     return null;
             }
-        
+
         case 'set':
             switch (methodName) {
                 case 'Insert':
@@ -677,7 +677,7 @@ function resolveBuiltInMethodReturnType(
                 default:
                     return null;
             }
-        
+
         default:
             return null;
     }
@@ -732,6 +732,19 @@ export async function resolveMethodReturnType(
         );
 
         if (member && isMethod(member)) {
+            // Special handling for Cast method inherited from Class base
+            // Cast is a static method where the return type is the calling class, not the declared type (Class)
+            if (methodName === 'Cast') {
+                const declaredReturnType = member.returnType ? extractTypeName(member.returnType) : null;
+                const isStaticMethod = isStaticDeclaration(member);
+
+                // If it's a static Cast method that returns 'Class', apply special handling
+                if (isStaticMethod && declaredReturnType === 'Class') {
+                    Logger.debug(`🎯 Special Cast method from Class base detected - returning calling class type: "${className}"`);
+                    return className;
+                }
+            }
+
             // Apply generic type substitution if needed
             if (genericArgs.length > 0) {
                 Logger.debug(`🔍 Applying generic substitution for method '${methodName}' on '${className}'`);
@@ -743,7 +756,7 @@ export async function resolveMethodReturnType(
                     return returnType;
                 }
             }
-            
+
             // Fall back to original return type if no generics or substitution failed
             const returnType = member.returnType ? extractTypeName(member.returnType) : null;
             Logger.debug(`🔍 Method '${methodName}' on '${className}' returns: ${returnType}`);
