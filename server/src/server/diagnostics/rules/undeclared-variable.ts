@@ -8,7 +8,7 @@ import { DeclarationStatement, BlockStatement, ForEachStatement, ForStatement, S
 import { UndeclaredEntityRule } from './undeclared-entity-base';
 import { isFunction, isMethod, isClass, isVarDecl } from '../../../util';
 import { BaseASTVisitor } from '../../ast/ast-visitor';
-import { findMemberInClassWithInheritance } from '../../util/ast-class-utils';
+import { findMemberInClassWithInheritance, mergeClassDefinitions } from '../../util/ast-class-utils';
 
 /**
  * Rule for detecting usage of undeclared variables
@@ -52,7 +52,7 @@ export class UndeclaredVariableRule extends UndeclaredEntityRule {
             config,
             this
         );
-        
+
         if (node.body) {
             visitor.visit(node.body);
         }
@@ -86,8 +86,14 @@ export class UndeclaredVariableRule extends UndeclaredEntityRule {
 
         // Add class member variables if this is a method
         const currentClass = this.findContainingClass(functionNode, context);
-        if (currentClass) {
-            for (const member of currentClass.members) {
+        if (currentClass && context.typeResolver) {
+            // Get ALL class definitions (including all modded versions) and merge them
+            const allClassDefs = context.typeResolver.findAllClassDefinitions(currentClass.name);
+            const mergedClass = mergeClassDefinitions(allClassDefs);
+            const membersToAdd = mergedClass ? mergedClass.members : currentClass.members;
+
+            // Add members to scope
+            for (const member of membersToAdd) {
                 // Add both variables and methods (methods can be used as function pointers in EnScript)
                 if (isVarDecl(member) || isMethod(member)) {
                     variables.add(member.name);
@@ -130,14 +136,14 @@ export class UndeclaredVariableRule extends UndeclaredEntityRule {
                     return astNode;
                 }
             }
-            
+
             if (context.typeResolver) {
                 const classDefs = context.typeResolver.findAllClassDefinitions(className);
                 if (classDefs.length > 0) {
-                    return classDefs[0];
+                    return mergeClassDefinitions(classDefs);
                 }
             }
-            
+
             return null;
         };
 
@@ -208,7 +214,7 @@ export class UndeclaredVariableRule extends UndeclaredEntityRule {
 class IdentifierFilterVisitor extends BaseASTVisitor<void> {
     private diagnostics: DiagnosticRuleResult[] = [];
     private blockScopes: Array<Set<string>> = []; // Stack of block-scoped variables
-    
+
     constructor(
         private initialScope: Set<string>, // Function-level scope from buildVariableScope
         private containingClass: ClassDeclNode | null,
@@ -219,7 +225,7 @@ class IdentifierFilterVisitor extends BaseASTVisitor<void> {
         super();
     }
 
-    protected defaultResult(): void {}
+    protected defaultResult(): void { }
 
     getDiagnostics(): DiagnosticRuleResult[] {
         return this.diagnostics;
@@ -272,7 +278,7 @@ class IdentifierFilterVisitor extends BaseASTVisitor<void> {
     // Handle block statements (create new scope for local variables)
     protected visitBlockStatement(node: BlockStatement): void {
         this.enterBlockScope();
-        
+
         if (Array.isArray(node.body)) {
             for (const stmt of node.body) {
                 this.visit(stmt);
@@ -299,7 +305,7 @@ class IdentifierFilterVisitor extends BaseASTVisitor<void> {
         if (Array.isArray(node.declarations)) {
             for (const decl of node.declarations) {
                 if (!isVarDecl(decl)) continue;
-                 this.addToCurrentBlockScope(decl.name);
+                this.addToCurrentBlockScope(decl.name);
                 // Visit initializer if present
                 if (decl.initializer) {
                     this.visit(decl.initializer);
@@ -314,19 +320,19 @@ class IdentifierFilterVisitor extends BaseASTVisitor<void> {
     // Handle foreach statements (add loop variables to scope)
     protected visitForEachStatement(node: ForEachStatement): void {
         this.enterBlockScope();
-        
+
         // Add foreach loop variables
         if (Array.isArray(node.variables)) {
             for (const variable of node.variables) {
                 this.addToCurrentBlockScope(variable.name);
             }
         }
-        
+
         // Visit iterable
         if (node.iterable) {
             this.visit(node.iterable as ASTNode);
         }
-        
+
         // Visit body
         if (node.body) {
             this.visit(node.body as ASTNode);
@@ -338,27 +344,27 @@ class IdentifierFilterVisitor extends BaseASTVisitor<void> {
     // Handle for statements (add loop variable to scope)
     protected visitForStatement(node: ForStatement): void {
         this.enterBlockScope();
-        
+
         // Visit initializer (may contain variable declaration)
         if (node.init) {
             this.visit(node.init as ASTNode);
         }
-        
+
         // Visit condition
         if (node.test) {
             this.visit(node.test as ASTNode);
         }
-        
+
         // Visit update
         if (node.update) {
             this.visit(node.update as ASTNode);
         }
-        
+
         // Visit body
         if (node.body) {
             this.visit(node.body as ASTNode);
         }
-        
+
         this.exitBlockScope();
     }
 
@@ -368,17 +374,17 @@ class IdentifierFilterVisitor extends BaseASTVisitor<void> {
         if (node.discriminant) {
             this.visit(node.discriminant as ASTNode);
         }
-        
+
         // Create a scope for the entire switch body (all cases share scope)
         this.enterBlockScope();
-        
+
         // Visit all cases
         if (node.cases && Array.isArray(node.cases)) {
             for (const caseNode of node.cases) {
                 this.visit(caseNode);
             }
         }
-        
+
         this.exitBlockScope();
     }
 
