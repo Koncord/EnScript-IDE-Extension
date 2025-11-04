@@ -10,7 +10,7 @@ import { Logger } from '../../util/logger';
 import { normalizeUri } from '../../util/uri';
 import { IASTScopeResolver } from '../scopes/ast-scope-resolver-interfaces';
 import { isEnum, isFunction, isClass, isMethod, isMemberExpression } from '../../util';
-import { findMemberInClassWithInheritance } from '../util/ast-class-utils';
+import { findMemberInClassWithInheritance, mergeClassDefinitions } from '../util/ast-class-utils';
 import {
     stripGenericArguments,
     findMemberInClassHierarchy,
@@ -250,14 +250,18 @@ export async function findExactDefinition(
 
     // 3. Check class members (if in a class) - now with full inheritance chain support!
     if (scopeContext.containingClass) {
+        const containingClassName = scopeContext.containingClass.name;
+        const allContainingClassDefs = typeResolver.findAllClassDefinitions(containingClassName);
+        const mergedContainingClass = mergeClassDefinitions(allContainingClassDefs) || scopeContext.containingClass;
+        
         // Use core function to search with full inheritance support
         const member = findMemberInClassWithInheritance(
-            scopeContext.containingClass,
+            mergedContainingClass,
             symbolName,
             (className) => {
-                // Use typeResolver which automatically resolves typedefs
+                // Merge all modded class definitions for base classes too
                 const classDefs = typeResolver.findAllClassDefinitions(className);
-                return classDefs.length > 0 ? classDefs[0] : null;
+                return mergeClassDefinitions(classDefs);
             },
             false, // Don't include private members from base classes
             new Set()
@@ -267,7 +271,7 @@ export async function findExactDefinition(
             // Find which document contains this member (current or base class)
             let memberUri = currentUri;
 
-            // If member is from base class, find its URI
+            // If member is from the merged class but not in current file's class, search for it
             if (!scopeContext.containingClass.members.includes(member)) {
                 // Search for the class that contains this member
                 for (const [uri, ast] of docCache.entries()) {
