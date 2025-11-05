@@ -856,18 +856,18 @@ export class TypeResolver implements ITypeResolver {
             }
 
             // Vector-scalar multiplication: vector * scalar or scalar * vector -> vector
+            // Scalars can be int, float, or enum types
             if (expr.operator === '*') {
                 const hasVector = leftType === 'vector' || rightType === 'vector';
-                const hasNumeric = (leftType === 'int' || leftType === 'float') ||
-                    (rightType === 'int' || rightType === 'float');
-                if (hasVector && hasNumeric) {
+                const hasNumericOrEnum = this.isNumericOrEnumType(leftType) || this.isNumericOrEnumType(rightType);
+                if (hasVector && hasNumericOrEnum) {
                     return 'vector';
                 }
             }
 
             // Vector-scalar division: vector / scalar -> vector
-            if (expr.operator === '/' && leftType === 'vector' &&
-                (rightType === 'int' || rightType === 'float')) {
+            // Scalars can be int, float, or enum types
+            if (expr.operator === '/' && leftType === 'vector' && this.isNumericOrEnumType(rightType)) {
                 return 'vector';
             }
 
@@ -879,6 +879,12 @@ export class TypeResolver implements ITypeResolver {
             // Numeric type promotion
             if (leftType === 'float' || rightType === 'float') {
                 return 'float';
+            }
+
+            // Enum + int or int + enum -> int
+            // Enum + enum -> int (enums are backed by integers)
+            if (this.isEnumType(leftType) || this.isEnumType(rightType)) {
+                return 'int';
             }
 
             if (leftType === 'int' && rightType === 'int') {
@@ -900,6 +906,34 @@ export class TypeResolver implements ITypeResolver {
         }
 
         return leftType || rightType;
+    }
+
+    /**
+     * Check if a type name is an enum type
+     */
+    private isEnumType(typeName: string | null): boolean {
+        if (!typeName) {
+            return false;
+        }
+        const enumDefs = this.findAllEnumDefinitions(typeName);
+        return enumDefs.length > 0;
+    }
+
+    /**
+     * Check if a type is numeric
+     */
+    private isNumericType(typeName: string): boolean {
+        return ['int', 'float'].includes(typeName);
+    }
+
+    /**
+     * Check if a type is numeric (int, float) or enum (which can be used as int)
+     */
+    private isNumericOrEnumType(typeName: string | null): boolean {
+        if (!typeName) {
+            return false;
+        }
+        return this.isNumericType(typeName) || this.isEnumType(typeName);
     }
 
     /**

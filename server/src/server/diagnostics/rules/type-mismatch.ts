@@ -29,18 +29,18 @@ import {
     MethodDeclNode
 } from '../../ast/node-types';
 import { Logger } from '../../../util/logger';
-import { 
-    extractTypeName, 
-    findContainingClass, 
+import {
+    extractTypeName,
+    findContainingClass,
     findContainingFunctionOrMethod,
     isClassDerivedFrom,
     findFunctionInFile,
     findAllMethodsInClass,
     resolveMethodsFromMemberExpression
 } from '../../util/symbol-resolution-utils';
-import { 
-    parseGenericType, 
-    isPrimitiveType, 
+import {
+    parseGenericType,
+    isPrimitiveType,
     isPrimitiveBuiltInType,
     normalizeTypeName,
     isGenericTypeParameter,
@@ -438,11 +438,11 @@ export class TypeMismatchRule extends BaseDiagnosticRule {
                 if (containingClass) {
                     // Look for all methods in the class (handles overloading)
                     const methods = findAllMethodsInClass(
-                        containingClass, 
-                        funcName, 
-                        { 
-                            document: context.document, 
-                            typeResolver: context.typeResolver 
+                        containingClass,
+                        funcName,
+                        {
+                            document: context.document,
+                            typeResolver: context.typeResolver
                         }
                     );
                     results.push(...methods);
@@ -471,9 +471,9 @@ export class TypeMismatchRule extends BaseDiagnosticRule {
                 const methods = await resolveMethodsFromMemberExpression(
                     node.callee,
                     context.ast,
-                    { 
-                        document: context.document, 
-                        typeResolver: context.typeResolver 
+                    {
+                        document: context.document,
+                        typeResolver: context.typeResolver
                     }
                 );
                 results.push(...methods);
@@ -527,27 +527,39 @@ export class TypeMismatchRule extends BaseDiagnosticRule {
                 }
 
                 // vector * scalar, scalar * vector (scaling)
+                // Scalars can be numeric types (int, float) or enums (implicitly cast to int)
                 if (operator === '*') {
-                    if ((leftType === 'vector' && this.isNumericType(rightType)) ||
-                        (this.isNumericType(leftType) && rightType === 'vector')) {
+                    const leftIsNumericOrEnum = this.isNumericType(leftType) || this.isIntegerOrEnumType(leftType, context);
+                    const rightIsNumericOrEnum = this.isNumericType(rightType) || this.isIntegerOrEnumType(rightType, context);
+
+                    if ((leftType === 'vector' && rightIsNumericOrEnum) ||
+                        (leftIsNumericOrEnum && rightType === 'vector')) {
                         return results;
                     }
                 }
 
                 // vector / scalar (scaling)
-                if (operator === '/' && leftType === 'vector' && this.isNumericType(rightType)) {
-                    return results;
+                // Scalars can be numeric types (int, float) or enums (implicitly cast to int)
+                if (operator === '/' && leftType === 'vector') {
+                    const rightIsNumericOrEnum = this.isNumericType(rightType) || this.isIntegerOrEnumType(rightType, context);
+                    if (rightIsNumericOrEnum) {
+                        return results;
+                    }
                 }
 
-                // Numeric operations require numeric types (if not vector operations)
-                if (!this.isNumericType(leftType) && leftType !== 'vector') {
+                // Numeric operations require numeric types or enums (if not vector operations)
+                // Enums are allowed as they can be implicitly cast to integers
+                const isValidLeftType = this.isNumericType(leftType) || this.isIntegerOrEnumType(leftType, context) || leftType === 'vector';
+                const isValidRightType = this.isNumericType(rightType) || this.isIntegerOrEnumType(rightType, context) || rightType === 'vector';
+
+                if (!isValidLeftType) {
                     results.push(this.createTypeMismatchDiagnostic(
                         `Operator '${operator}' cannot be applied to type '${leftType}'`,
                         node.left,
                         DiagnosticSeverity.Error
                     ));
                 }
-                if (!this.isNumericType(rightType) && rightType !== 'vector') {
+                if (!isValidRightType) {
                     results.push(this.createTypeMismatchDiagnostic(
                         `Operator '${operator}' cannot be applied to type '${rightType}'`,
                         node.right,

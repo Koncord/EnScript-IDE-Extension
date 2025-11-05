@@ -935,6 +935,29 @@ void test() {
             expect(results).toHaveLength(0);
         });
 
+        it('should allow arithmetic operations on enums', async () => {
+            const code = `
+enum TestEnum {
+    VALUE_A = 1,
+    VALUE_B = 2,
+    VALUE_C = 3
+}
+
+class TestClass1 {
+    void MyMethod(int x) {}
+    void TestMethod(TestEnum e) {
+        int x = 1;
+        MyMethod(e + x);
+        int result = e - 1;
+        int product = e * 2;
+        int quotient = e / 2;
+    }
+}`;
+            const results = await runDiagnosticRule(rule, code, testContext);
+
+            expect(results).toHaveLength(0);
+        });
+
         it('should warn about int to bool conversion in variable declaration', async () => {
             const code = `
 void test() {
@@ -1064,7 +1087,7 @@ void test() {
     vector position = GetPosition() + (GetDirection() * distance);
 }`;
             const results = await runDiagnosticRule(rule, code, testContext);
-            
+
             // Vector arithmetic: vector + vector, vector * float
             expect(results).toHaveLength(0);
         });
@@ -1078,7 +1101,7 @@ void test() {
     vector diff = a - b;
 }`;
             const results = await runDiagnosticRule(rule, code, testContext);
-            
+
             expect(results).toHaveLength(0);
         });
 
@@ -1092,7 +1115,7 @@ void test() {
     vector scaled3 = v * 2;
 }`;
             const results = await runDiagnosticRule(rule, code, testContext);
-            
+
             expect(results).toHaveLength(0);
         });
 
@@ -1104,7 +1127,7 @@ void test() {
     vector result = v / divisor;
 }`;
             const results = await runDiagnosticRule(rule, code, testContext);
-            
+
             expect(results).toHaveLength(0);
         });
 
@@ -1117,7 +1140,7 @@ class TestClass {
     }
 }`;
             const results = await runDiagnosticRule(rule, code, testContext);
-            
+
             // Method call should return vector
             expect(results).toHaveLength(0);
         });
@@ -1131,7 +1154,7 @@ class TestClass {
     }
 }`;
             const results = await runDiagnosticRule(rule, code, testContext);
-            
+
             // Method should return vector, vector * float should be vector
             expect(results).toHaveLength(0);
         });
@@ -1147,7 +1170,7 @@ class TestClass {
     }
 }`;
             const results = await runDiagnosticRule(rule, code, testContext);
-            
+
             // Should not flag vector arithmetic with method call returns
             expect(results).toHaveLength(0);
         });
