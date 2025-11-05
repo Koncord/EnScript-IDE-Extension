@@ -26,7 +26,8 @@ import {
     isStaticDeclaration,
     isConstDeclaration,
     isIdentifier,
-    isThisExpression
+    isThisExpression,
+    mergeClassDefinitions
 } from './ast-class-utils';
 import { keywords } from '../lexer/rules';
 import { Logger } from '../../util/logger';
@@ -476,8 +477,11 @@ export async function findMemberInClassHierarchy(
                 if (baseClassName) {
                     // Load base class with stub detection (will reload from include paths if stubbed)
                     const baseDefs = await tryLoadClassFromIncludes(baseClassName, context);
-                    if (baseDefs[0]) {
-                        await collectMembers(baseDefs[0], visited);
+                    if (baseDefs.length > 0) {
+                        const mergedBaseDef = mergeClassDefinitions(baseDefs);
+                        if (mergedBaseDef) {
+                            await collectMembers(mergedBaseDef, visited);
+                        }
                     }
                 }
             }
