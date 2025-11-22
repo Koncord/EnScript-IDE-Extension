@@ -1,0 +1,11 @@
+export * from './hello-message';
+export * from './bye-message';
+export * from './module-load-message';
+export * from './module-unload-message';
+export * from './log-message';
+export * from './debug-control-message';
+export * from './recompile-message';
+export * from './execute-code-message';
+export * from './callstack-message';
+export * from './watchpoint-message';
+export { BaseMessage, MessageType } from './base-message';
