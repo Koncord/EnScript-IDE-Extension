@@ -1,4 +1,5 @@
-import { BaseMessage, MessageType,
+import {
+    BaseMessage, MessageType,
     HelloMessage,
     ByeMessage,
     ModuleLoadMessage,
@@ -9,13 +10,14 @@ import { BaseMessage, MessageType,
     ExecuteCodeMessage,
     CallstackMessage,
     WatchpointMessage,
+    AddWatchpointMessage,
 } from './messages';
 import { NetworkBuffer } from './network-buffer';
 
 export class DebugProtocol {
     private writeLocked = false;
 
-    constructor(private readonly buffer: NetworkBuffer) {}
+    constructor(private readonly buffer: NetworkBuffer) { }
 
     async readRaw(n: number, timeout?: number): Promise<Buffer> {
         return await this.buffer.read(n, timeout);
@@ -57,12 +59,17 @@ export class DebugProtocol {
     }
 
     async readCStr(timeout?: number): Promise<string> {
-        let buf = await this.readArray(timeout);
-        if (buf.length > 0 && buf[buf.length - 1] === 0) {
-            buf = buf.subarray(0, -1); // Remove null terminator
-        }
+        const length = await this.readU32(timeout);
+        if (length === 0) return '';
 
-        return buf.toString('utf8');
+        const buf = await this.readRaw(length, timeout);
+
+        // Remove trailing null if present
+        const effectiveLength = (buf.length > 0 && buf[buf.length - 1] === 0)
+            ? buf.length - 1
+            : buf.length;
+
+        return buf.toString('utf8', 0, effectiveLength);
     }
 
     async writeRaw(data: Buffer, signal?: AbortSignal): Promise<void> {
@@ -112,7 +119,7 @@ export class DebugProtocol {
 
     async processMessage(timeout?: number): Promise<BaseMessage> {
         const tag = await this.readU32(timeout);
-         switch (tag as MessageType) {
+        switch (tag as MessageType) {
             case MessageType.Hello:
                 return await HelloMessage.deserialize(this);
             case MessageType.Bye:
@@ -133,10 +140,10 @@ export class DebugProtocol {
                 return await CallstackMessage.deserialize(this);
             case MessageType.Watchpoints:
                 return await WatchpointMessage.deserialize(this);
-    //         case MessageType.AddWatchpoint:
-    //             return await AddWatchpointMessage.deserialize(this);
-             default:
-                 throw new Error(`Unknown tag 0x${tag.toString(16)}`);
+            case MessageType.AddWatch:
+                return await AddWatchpointMessage.deserialize(this);
+            default:
+                throw new Error(`Unknown message tag: 0x${tag.toString(16)} (decimal: ${tag})`);
         }
     }
 

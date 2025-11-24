@@ -68,13 +68,29 @@ async function main() {
         plugins: [esbuildProblemMatcherPlugin],
     });
 
+    // Build the debug adapter
+    const debugAdapterCtx = await context({
+        entryPoints: ['server/src/debug-adapter-entry.ts'],
+        bundle: true,
+        format: 'cjs',
+        minify: production,
+        sourcemap: !production ? 'inline' : false,
+        sourcesContent: !production,
+        platform: 'node',
+        outfile: 'out/debug-adapter.js',
+        external: [],
+        logLevel: 'silent',
+        plugins: [esbuildProblemMatcherPlugin],
+    });
+
     if (watch) {
-        await Promise.all([clientCtx.watch(), serverCtx.watch(), cliCtx.watch()]);
+        await Promise.all([clientCtx.watch(), serverCtx.watch(), cliCtx.watch(), debugAdapterCtx.watch()]);
     } else {
-        await Promise.all([clientCtx.rebuild(), serverCtx.rebuild(), cliCtx.rebuild()]);
+        await Promise.all([clientCtx.rebuild(), serverCtx.rebuild(), cliCtx.rebuild(), debugAdapterCtx.rebuild()]);
         await clientCtx.dispose();
         await serverCtx.dispose();
         await cliCtx.dispose();
+        await debugAdapterCtx.dispose();
     }
 }
 

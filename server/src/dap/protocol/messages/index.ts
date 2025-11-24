@@ -8,4 +8,5 @@ export * from './recompile-message';
 export * from './execute-code-message';
 export * from './callstack-message';
 export * from './watchpoint-message';
+export * from './add-watchpoint-message';
 export { BaseMessage, MessageType } from './base-message';

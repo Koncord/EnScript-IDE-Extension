@@ -13,6 +13,11 @@ interface LSPConnection {
     sendNotification(method: string, params: unknown): void;
 }
 
+// Define DAP Session interface for debug adapter logging
+interface DAPSession {
+    sendEvent(event: { seq: number; type: string; event: string; body?: unknown }): void;
+}
+
 /**
  * Log level enumeration
  */
@@ -45,6 +50,8 @@ export interface LoggerConfig {
     prefix?: string;
     /** Optional LSP connection for server-to-client logging */
     connection?: LSPConnection;
+    /** Optional DAP session for debug adapter logging */
+    dapSession?: DAPSession;
 }
 
 /**
@@ -130,6 +137,28 @@ export class Logger {
     }
 
     /**
+     * Set the DAP session for debug adapter logging
+     * 
+     * @param session DAP session instance
+     */
+    static setDAPSession(session: DAPSession): void {
+        this.config = {
+            ...this.config,
+            dapSession: session
+        };
+    }
+
+    /**
+     * Clear the DAP session
+     */
+    static clearDAPSession(): void {
+        this.config = {
+            ...this.config,
+            dapSession: undefined
+        };
+    }
+
+    /**
      * Get current logger configuration
      * 
      * @returns Current logger configuration
@@ -202,7 +231,29 @@ export class Logger {
             ).join(' ')}`
             : formattedMessage;
 
-        // Try to use LSP connection first
+        // Add level prefix for DAP and console output
+        const levelPrefix = ['ERROR', 'WARN', 'INFO', 'DEBUG'][level];
+        const fullMessageWithLevel = `[${levelPrefix}] ${fullMessage}`;
+
+        // Try to use DAP session first (for debug adapter)
+        if (this.config.dapSession && typeof this.config.dapSession.sendEvent === 'function') {
+            try {
+                this.config.dapSession.sendEvent({
+                    seq: 0,
+                    type: 'event',
+                    event: 'output',
+                    body: {
+                        category: 'console',
+                        output: fullMessageWithLevel + '\n'
+                    }
+                });
+                return;
+            } catch (error) {
+                // DAP logging failed, continue to next option
+            }
+        }
+
+        // Try to use LSP connection (for language server)
         if (this.config.connection && typeof this.config.connection.sendNotification === 'function') {
             try {
                 let messageType: MessageType;
@@ -234,19 +285,19 @@ export class Logger {
             }
         }
 
-        // Fallback to console logging
+        // Fallback to console logging (only safe when not using stdio protocol)
         switch (level) {
             case LogLevel.ERROR:
-                console.error(fullMessage);
+                console.error(fullMessageWithLevel);
                 break;
             case LogLevel.WARN:
-                console.warn(fullMessage);
+                console.warn(fullMessageWithLevel);
                 break;
             case LogLevel.DEBUG:
-                console.log(`DEBUG: ${fullMessage}`);
+                console.log(fullMessageWithLevel);
                 break;
             default:
-                console.log(fullMessage);
+                console.log(fullMessageWithLevel);
         }
     }
 

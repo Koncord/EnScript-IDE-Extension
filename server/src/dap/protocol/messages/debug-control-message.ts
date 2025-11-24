@@ -21,9 +21,9 @@ export class DebugControlMessage extends BaseMessage {
     }
 
     public override async serialize(protocol: DebugProtocol, signal?: AbortSignal): Promise<void> {
-        Logger.debug(`[SEND] [DEBUG CONTROL] Command: ${DebugControlCommand[this.command]}`);
         await protocol.writeU32(0, signal);
         const totalBreakpoints = Array.from(this.breakpoints.values()).reduce((sum, codePoints) => sum + codePoints.length, 0);
+        Logger.debug(`[SEND] [DEBUG CONTROL] Command: ${DebugControlCommand[this.command]}, Total Breakpoints: ${totalBreakpoints}`);
         await protocol.writeU32(totalBreakpoints, signal);
         for (const [moduleAddr, codePoints] of this.breakpoints) {
             for (const cp of codePoints) {

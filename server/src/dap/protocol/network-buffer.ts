@@ -3,45 +3,37 @@ import { EventEmitter } from 'events';
 import { Logger } from '../../util/logger';
 
 export class NetworkBuffer {
-    private buffer: Buffer;
-    private readPosition = 0;
-    private writePosition = 0;
-    private availableBytes = 0;
+    private buffer: Buffer = Buffer.alloc(0);
     private closed = false;
     private readonly events = new EventEmitter();
     private readLocked = false;
-    private writeLocked = false;
     private abortController?: AbortController;
 
     constructor(
         private readonly stream: Socket,
         private readonly closeStream: boolean = false
-    ) {
-        this.buffer = Buffer.alloc(65536); // 64KB initial buffer
-    }
+    ) { }
 
     async start(signal?: AbortSignal): Promise<void> {
         this.abortController = new AbortController();
-        
+
         // Link external signal if provided
         if (signal) {
             signal.addEventListener('abort', () => this.abortController?.abort());
         }
 
         try {
-            const tempBuffer = Buffer.alloc(16384); // 16KB read buffer for better throughput
-            
             while (!this.closed && !this.abortController.signal.aborted) {
-                const bytesRead = await new Promise<number>((resolve, reject) => {
+                const dataBuffer = await new Promise<Buffer | null>((resolve, reject) => {
                     let resolved = false;
-                    
+
                     const onData = (data: Buffer) => {
                         if (!resolved) {
                             resolved = true;
                             cleanup();
-                            const length = Math.min(data.length, tempBuffer.length);
-                            data.copy(tempBuffer, 0, 0, length);
-                            resolve(length);
+                            // Create a copy immediately to avoid any buffer reuse issues
+                            const copy = Buffer.from(data);
+                            resolve(copy);
                         }
                     };
 
@@ -49,7 +41,7 @@ export class NetworkBuffer {
                         if (!resolved) {
                             resolved = true;
                             cleanup();
-                            resolve(0);
+                            resolve(null);
                         }
                     };
 
@@ -81,12 +73,12 @@ export class NetworkBuffer {
                     this.abortController!.signal.addEventListener('abort', onCancel);
                 });
 
-                if (bytesRead === 0) {
+                if (dataBuffer === null) {
                     Logger.info('Connection closed by peer');
                     break;
                 }
 
-                this.store(tempBuffer, bytesRead);
+                this.store(dataBuffer, dataBuffer.length);
             }
         } catch (err: unknown) {
             const error = err as { message?: string; code?: string; constructor?: { name: string } };
@@ -105,53 +97,28 @@ export class NetworkBuffer {
     }
 
     private store(data: Buffer, length: number): void {
-        // Ensure we have enough space
-        const requiredCapacity = this.availableBytes + length;
-        if (requiredCapacity > this.buffer.length) {
-            // Need to grow the buffer
-            const newCapacity = Math.max(this.buffer.length * 2, requiredCapacity);
-            const newBuffer = Buffer.alloc(newCapacity);
-            
-            // Copy existing data to new buffer
-            if (this.availableBytes > 0) {
-                if (this.readPosition < this.writePosition) {
-                    // Data is contiguous
-                    this.buffer.copy(newBuffer, 0, this.readPosition, this.writePosition);
-                } else {
-                    // Data wraps around
-                    const bytesToEnd = this.buffer.length - this.readPosition;
-                    this.buffer.copy(newBuffer, 0, this.readPosition, this.buffer.length);
-                    this.buffer.copy(newBuffer, bytesToEnd, 0, this.writePosition);
-                }
-            }
-            
-            this.buffer = newBuffer;
-            this.readPosition = 0;
-            this.writePosition = this.availableBytes;
-        } else if (this.writePosition + length > this.buffer.length) {
-            // Need to compact/unwrap the buffer
-            const newBuffer = Buffer.alloc(this.buffer.length);
-            if (this.availableBytes > 0) {
-                if (this.readPosition < this.writePosition) {
-                    this.buffer.copy(newBuffer, 0, this.readPosition, this.writePosition);
-                } else {
-                    const bytesToEnd = this.buffer.length - this.readPosition;
-                    this.buffer.copy(newBuffer, 0, this.readPosition, this.buffer.length);
-                    this.buffer.copy(newBuffer, bytesToEnd, 0, this.writePosition);
-                }
-            }
-            this.buffer = newBuffer;
-            this.readPosition = 0;
-            this.writePosition = this.availableBytes;
-        }
-
-        // Write new data
-        data.copy(this.buffer, this.writePosition, 0, length);
-        this.writePosition = (this.writePosition + length) % this.buffer.length;
-        this.availableBytes += length;
+        // Data is already a copy from Buffer.from() in start(), safe to append directly
+        const newData = length === data.length ? data : Buffer.from(data.subarray(0, length));
+        this.buffer = Buffer.concat([this.buffer, newData]);
 
         // Signal that data is available
         this.events.emit('data');
+    }
+
+    /**
+     * Returns the number of bytes currently available in the buffer
+     */
+    available(): number {
+        return this.buffer.length;
+    }
+
+    /**
+     * Peek at the next n bytes without consuming them
+     */
+    async peek(n: number): Promise<Buffer> {
+        // Return up to n bytes without removing them from buffer
+        const length = Math.min(n, this.buffer.length);
+        return this.buffer.slice(0, length);
     }
 
     async read(n: number, timeout?: number): Promise<Buffer> {
@@ -164,9 +131,9 @@ export class NetworkBuffer {
         this.readLocked = true;
 
         try {
-            while (this.availableBytes < n) {
+            while (this.buffer.length < n) {
                 if (this.closed) {
-                    throw new Error(`Socket closed. Needed ${n} bytes, got ${this.availableBytes}.`);
+                    throw new Error(`Socket closed. Needed ${n} bytes, got ${this.buffer.length}.`);
                 }
 
                 const timeoutValue = timeoutMs === 0 ? Infinity : timeoutMs;
@@ -188,23 +155,18 @@ export class NetworkBuffer {
                 });
 
                 if (!acquired) {
-                    throw new Error(`Timed out waiting for ${n} bytes, only got ${this.availableBytes}`);
+                    throw new Error(`Timed out waiting for ${n} bytes, only got ${this.buffer.length}`);
                 }
             }
 
-            const data = Buffer.alloc(n);
-            if (this.readPosition + n <= this.buffer.length) {
-                // Data is contiguous
-                this.buffer.copy(data, 0, this.readPosition, this.readPosition + n);
-            } else {
-                // Data wraps around
-                const bytesToEnd = this.buffer.length - this.readPosition;
-                this.buffer.copy(data, 0, this.readPosition, this.buffer.length);
-                this.buffer.copy(data, bytesToEnd, 0, n - bytesToEnd);
+            // Extract the requested bytes (use slice to create a copy, not a view)
+            const data = this.buffer.slice(0, n);
+            this.buffer = this.buffer.slice(n);
+
+            // Verify we're returning the right amount
+            if (data.length !== n) {
+                throw new Error(`NetworkBuffer.read: Requested ${n} bytes but returning ${data.length} bytes. Buffer had ${this.buffer.length + data.length} bytes.`);
             }
-            
-            this.readPosition = (this.readPosition + n) % this.buffer.length;
-            this.availableBytes -= n;
 
             return data;
         } finally {
@@ -213,41 +175,31 @@ export class NetworkBuffer {
     }
 
     async write(data: Buffer, signal?: AbortSignal): Promise<void> {
-        // Simple lock - wait if another write is in progress
-        while (this.writeLocked) {
-            await new Promise(resolve => setImmediate(resolve));
-        }
-        this.writeLocked = true;
+        await new Promise<void>((resolve, reject) => {
+            let resolved = false;
 
-        try {
-            await new Promise<void>((resolve, reject) => {
-                let resolved = false;
-
-                const onCancel = () => {
-                    if (!resolved) {
-                        resolved = true;
-                        reject(new Error('Operation cancelled'));
-                    }
-                };
-
-                if (signal) {
-                    signal.addEventListener('abort', onCancel);
+            const onCancel = () => {
+                if (!resolved) {
+                    resolved = true;
+                    reject(new Error('Operation cancelled'));
                 }
+            };
 
-                this.stream.write(data, (err) => {
-                    if (!resolved) {
-                        resolved = true;
-                        if (err) {
-                            reject(err);
-                        } else {
-                            resolve();
-                        }
+            if (signal) {
+                signal.addEventListener('abort', onCancel);
+            }
+
+            this.stream.write(data, (err) => {
+                if (!resolved) {
+                    resolved = true;
+                    if (err) {
+                        reject(err);
+                    } else {
+                        resolve();
                     }
-                });
+                }
             });
-        } finally {
-            this.writeLocked = false;
-        }
+        });
     }
 
     close(): void {

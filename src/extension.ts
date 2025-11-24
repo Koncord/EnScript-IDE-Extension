@@ -4,8 +4,10 @@ import { WebviewManager } from './webview-manager';
 import { DiagnosticsCommands } from './commands/diagnostics-commands';
 import { IndexCommands } from './commands/index-commands';
 import { ProjectCommands } from './commands/project-commands';
+import { ReplCommands } from './commands/repl-commands';
 import { IncludePathsManager } from './include-paths-manager';
 import { configureDayZTools, showFirstTimeSetup } from './dayz-tools-finder';
+import { EnScriptDebugAdapterDescriptorFactory, EnScriptDebugConfigurationProvider } from './debug/debug-adapter-factory';
 
 let clientManager: LanguageClientManager | undefined;
 let includePathsManager: IncludePathsManager | undefined;
@@ -20,8 +22,20 @@ export async function activate(context: vscode.ExtensionContext) {
     IndexCommands.registerCommands(context, () => clientManager?.getClient());
     DiagnosticsCommands.registerCommands(context, () => clientManager?.getClient());
     ProjectCommands.registerCommands(context, () => clientManager?.getClient());
+    ReplCommands.registerCommands(context);
     
     includePathsManager.setClientGetter(() => clientManager?.getClient());
+
+    // Register debug adapter
+    context.subscriptions.push(
+        vscode.debug.registerDebugAdapterDescriptorFactory(
+            'enscript', 
+            new EnScriptDebugAdapterDescriptorFactory(context)
+        )
+    );
+    context.subscriptions.push(
+        vscode.debug.registerDebugConfigurationProvider('enscript', new EnScriptDebugConfigurationProvider())
+    );
 
     // Listen for include paths updates from LSP server
     const client = clientManager.getClient();

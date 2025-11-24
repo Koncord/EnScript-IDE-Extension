@@ -46,6 +46,8 @@
         "@types/vscode": "^1.105.0",
         "@typescript-eslint/eslint-plugin": "^8.46.0",
         "@typescript-eslint/parser": "^8.46.0",
+        "@vscode/debugadapter": "^1.68.0",
+        "@vscode/debugprotocol": "^1.68.0",
         "esbuild": "^0.25.11",
         "eslint": "^9.38.0",
         "globals": "^16.4.0",
@@ -54,9 +56,7 @@
         "rimraf": "^6.0.1",
         "ts-jest": "^29.4.5",
         "typescript": "^5.9.3",
-        "typescript-eslint": "^8.46.0",
-        "@vscode/debugadapter": "^1.68.0",
-        "@vscode/debugprotocol": "^1.68.0"
+        "typescript-eslint": "^8.46.0"
     },
     "activationEvents": [],
     "main": "./out/extension.js",
@@ -132,6 +132,15 @@
                 "title": "Enscript: Show Rule Documentation"
             },
             {
+                "command": "enscript.openRepl",
+                "title": "Enscript: Open REPL",
+                "icon": "$(terminal)"
+            },
+            {
+                "command": "enscript.executeInRepl",
+                "title": "Enscript: Execute Selection in REPL"
+            },
+            {
                 "command": "enscript.addIncludePath",
                 "title": "Enscript: Add Include Path",
                 "icon": "$(add)"
@@ -183,6 +192,19 @@
                     "command": "enscript.copyIncludePath",
                     "when": "view == enscriptIncludePaths && viewItem =~ /includePathDirectory|includePathRoot|includePathFile/",
                     "group": "5_cutcopypaste"
+                }
+            ],
+            "editor/context": [
+                {
+                    "command": "enscript.executeInRepl",
+                    "when": "editorLangId == enscript",
+                    "group": "9_cutcopypaste"
+                }
+            ],
+            "commandPalette": [
+                {
+                    "command": "enscript.executeInRepl",
+                    "when": "editorLangId == enscript"
                 }
             ]
         },
@@ -397,6 +419,66 @@
                 "id": "enscript-icons",
                 "label": "Enscript IDE File Icons",
                 "path": "./icons/enscript-icon-theme.json"
+            }
+        ],
+        "breakpoints": [
+            {
+                "language": "enscript"
+            }
+        ],
+        "debuggers": [
+            {
+                "type": "enscript",
+                "label": "EnScript Debug",
+                "languages": ["enscript"],
+                "configurationAttributes": {
+                    "launch": {
+                        "required": [],
+                        "properties": {
+                            "ports": {
+                                "type": "array",
+                                "description": "TCP ports to listen on for DayZ debug connections",
+                                "default": [1000, 1001],
+                                "items": {
+                                    "type": "number"
+                                }
+                            }
+                        }
+                    },
+                    "attach": {
+                        "required": [],
+                        "properties": {
+                            "ports": {
+                                "type": "array",
+                                "description": "TCP ports to connect to for DayZ debug",
+                                "default": [1000, 1001],
+                                "items": {
+                                    "type": "number"
+                                }
+                            }
+                        }
+                    }
+                },
+                "initialConfigurations": [
+                    {
+                        "type": "enscript",
+                        "request": "attach",
+                        "name": "Attach to DayZ",
+                        "ports": [1000, 1001]
+                    }
+                ],
+                "configurationSnippets": [
+                    {
+                        "label": "EnScript: Attach to DayZ",
+                        "description": "Attach to running DayZ instance",
+                        "body": {
+                            "type": "enscript",
+                            "request": "attach",
+                            "name": "Attach to DayZ",
+                            "ports": [1000, 1001]
+                        }
+                    }
+                ]
             }
         ]
     }
