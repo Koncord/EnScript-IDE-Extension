@@ -248,7 +248,7 @@ export class Logger {
                     }
                 });
                 return;
-            } catch (error) {
+            } catch {
                 // DAP logging failed, continue to next option
             }
         }
@@ -369,11 +369,11 @@ export class Logger {
     static time(label: string): void {
         // Always format the message consistently
         const formattedLabel = this.formatMessage(label);
-        
+
         // Store the formatted label so we can use the exact same one in timeEnd()
         // This handles cases where the prefix might change between time() and timeEnd()
         this.activeTimers.set(label, formattedLabel);
-        
+
         // Always start the timer, regardless of enabled state
         // This ensures timeEnd() can always properly end it
         console.time(formattedLabel);

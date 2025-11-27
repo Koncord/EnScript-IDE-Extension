@@ -37,8 +37,20 @@ export class EnScriptDebugSession extends DebugSession implements IDayZDebugList
     });
     private _debugServer: TcpDebugServer | undefined;
     private _abortController: AbortController | undefined;
-    private _currentCallstack: any[] = [];
-    private _currentWatchpoints: any[] = [];
+    private _currentCallstack: Array<{
+        className: string;
+        functionName: string;
+        filePath: string | undefined;
+        line: number | undefined;
+        codePointIndex: number;
+    }> = [];
+    private _currentWatchpoints: Array<{
+        Unknown1: number;
+        Number: number;
+        Unknown3: number;
+        Unknown4: number;
+        DisplayValue: string;
+    }> = [];
     private _connectedPorts: Map<DayZDebugAdapter, string> = new Map();
     private _workspaceRoot: string | undefined;
     // Store breakpoints that were set before modules loaded
@@ -168,7 +180,7 @@ export class EnScriptDebugSession extends DebugSession implements IDayZDebugList
 
                     // Group breakpoints by file path for logging
                     const breakpointsByFile = new Map<string, number[]>();
-                    
+
                     for (const bpIdx of module.breakPoints) {
                         const dp = module.debugPoints[bpIdx];
                         if (dp && dp.fileIndex < module.paths.length) {
@@ -211,15 +223,15 @@ export class EnScriptDebugSession extends DebugSession implements IDayZDebugList
                         if (matchingPath) {
                             Logger.info(`Found pending breakpoints for ${pendingPath} in loaded module`);
                             const resolvedPath = this.resolveAbsolutePath(matchingPath);
-                            
+
                             // Set breakpoints on this port
                             const results = port.setBreakpointsForFile(resolvedPath, pendingLines);
                             const verifiedCount = results.filter(bp => bp.verified).length;
                             Logger.info(`Applied ${verifiedCount}/${pendingLines.length} pending breakpoints to ${resolvedPath}`);
-                            
+
                             // Get stored breakpoint IDs for this file
                             const lineToId = this._breakpointIdsByFile.get(pendingPath);
-                            
+
                             if (lineToId) {
                                 // Send breakpoint events to VS Code for each verified breakpoint
                                 for (const result of results) {
@@ -232,13 +244,13 @@ export class EnScriptDebugSession extends DebugSession implements IDayZDebugList
                                                 line: result.line,
                                                 source: { name: path.basename(pendingPath), path: pendingPath }
                                             };
-                                            this.sendEvent(new BreakpointEvent('changed', bp as any));
+                                            this.sendEvent(new BreakpointEvent('changed', bp as DebugProtocol.Breakpoint));
                                             Logger.debug(`Sent breakpoint changed event for ${pendingPath}:${result.line} (id=${bpId})`);
                                         }
                                     }
                                 }
                             }
-                            
+
                             hasPendingBreakpoints = true;
                         }
                     }
@@ -293,7 +305,7 @@ export class EnScriptDebugSession extends DebugSession implements IDayZDebugList
 
     protected async launchRequest(
         response: DebugProtocol.LaunchResponse,
-        args: any
+        args: DebugProtocol.LaunchRequestArguments & { workspaceRoot?: string; ports?: number[] }
     ): Promise<void> {
         // Wait for configuration to be done
         await this._configurationDone;
@@ -303,11 +315,11 @@ export class EnScriptDebugSession extends DebugSession implements IDayZDebugList
 
         try {
             const ports = args.ports || [1000, 1001];
-            
+
             // Create and start TCP debug server directly
             this._abortController = new AbortController();
             this._debugServer = new TcpDebugServer(this, ports);
-            
+
             // Start server in background (don't await)
             this._debugServer.startAsync(this._abortController.signal).catch(error => {
                 Logger.error('Server error:', error);
@@ -324,7 +336,7 @@ export class EnScriptDebugSession extends DebugSession implements IDayZDebugList
 
     protected async attachRequest(
         response: DebugProtocol.AttachResponse,
-        args: any
+        args: DebugProtocol.AttachRequestArguments & { workspaceRoot?: string; ports?: number[] }
     ): Promise<void> {
         // Wait for configuration to be done
         await this._configurationDone;
@@ -334,11 +346,11 @@ export class EnScriptDebugSession extends DebugSession implements IDayZDebugList
 
         try {
             const ports = args.ports || [1000, 1001];
-            
+
             // Create and start TCP debug server directly
             this._abortController = new AbortController();
             this._debugServer = new TcpDebugServer(this, ports);
-            
+
             // Start server in background (don't await)
             this._debugServer.startAsync(this._abortController.signal).catch(error => {
                 Logger.error('Server error:', error);
@@ -386,7 +398,7 @@ export class EnScriptDebugSession extends DebugSession implements IDayZDebugList
                 // No connections yet - store as pending and mark as unverified
                 Logger.info('No DayZ connections yet, storing as pending breakpoints');
                 this._pendingBreakpoints.set(filePath, clientLines);
-                
+
                 // Create breakpoints with IDs and store the mapping
                 const lineToId = new Map<number, number>();
                 const breakpoints: DebugProtocol.Breakpoint[] = clientLines.map((line) => {
@@ -401,27 +413,27 @@ export class EnScriptDebugSession extends DebugSession implements IDayZDebugList
                     };
                 });
                 this._breakpointIdsByFile.set(filePath, lineToId);
-                
+
                 response.body = { breakpoints };
             } else {
                 // Set breakpoints on all connected DayZ instances
                 const allResults: Array<{ verified: boolean; line: number; message?: string }> = [];
-                
+
                 for (const [port, _] of this._connectedPorts) {
                     const results = port.setBreakpointsForFile(filePath, clientLines);
-                    
+
                     // Merge results (a breakpoint is verified if ANY port verified it)
                     for (let i = 0; i < clientLines.length; i++) {
                         const existing = allResults[i];
                         const current = results[i];
-                        
+
                         if (!existing) {
                             allResults[i] = current;
                         } else if (current.verified) {
                             allResults[i] = current; // Prefer verified
                         }
                     }
-                    
+
                     // Sync breakpoints to DayZ
                     await port.syncBreakpoints();
                 }
@@ -527,7 +539,7 @@ export class EnScriptDebugSession extends DebugSession implements IDayZDebugList
                 // Left side contains "type varname", right side contains value
                 const leftSide = parts[0].trim();
                 const rightSide = parts.slice(1).join('=').trim();
-                
+
                 // Split left side to get type and variable name
                 const leftParts = leftSide.split(/\s+/);
                 if (leftParts.length >= 2) {
@@ -617,10 +629,10 @@ export class EnScriptDebugSession extends DebugSession implements IDayZDebugList
     protected async customRequest(
         command: string,
         response: DebugProtocol.Response,
-        args: any
+        args: unknown
     ): Promise<void> {
         if (command === 'executeReplCode') {
-            await this.handleReplExecution(response, args);
+            await this.handleReplExecution(response, args as { code: string; module: string });
         } else {
             super.customRequest(command, response, args);
         }
@@ -684,16 +696,16 @@ export class EnScriptDebugSession extends DebugSession implements IDayZDebugList
                 for (const wp of this._currentWatchpoints) {
                     const displayValue = wp.DisplayValue || '';
                     const parts = displayValue.split('=');
-                    
+
                     if (parts.length >= 2) {
                         // Parse "type varname = value" format
                         const leftSide = parts[0].trim();
                         const varValue = parts.slice(1).join('=').trim();
-                        
+
                         // Extract variable name (after type declaration)
                         const leftParts = leftSide.split(/\s+/);
                         const varName = leftParts.length >= 2 ? leftParts.slice(1).join(' ') : leftSide;
-                        
+
                         if (varName === args.expression) {
                             response.body = {
                                 result: varValue,
@@ -704,13 +716,13 @@ export class EnScriptDebugSession extends DebugSession implements IDayZDebugList
                         }
                     }
                 }
-                
+
                 // Variable not found in watchpoints
                 response.body = {
                     result: 'not available',
                     variablesReference: 0
                 };
-            } 
+            }
             // For REPL, execute the code in DayZ
             else if (args.context === 'repl') {
                 if (this._connectedPorts.size === 0) {
@@ -721,7 +733,7 @@ export class EnScriptDebugSession extends DebugSession implements IDayZDebugList
                 } else {
                     // Execute code on all connected ports
                     const code = args.expression;
-                    
+
                     for (const [port, _] of this._connectedPorts) {
                         await port.executeCode(code);
                     }
@@ -732,7 +744,7 @@ export class EnScriptDebugSession extends DebugSession implements IDayZDebugList
                         variablesReference: 0
                     };
                 }
-            } 
+            }
             else {
                 // Unknown context
                 response.body = {

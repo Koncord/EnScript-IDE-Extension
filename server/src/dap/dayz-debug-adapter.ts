@@ -3,7 +3,6 @@ import { DebugProtocol } from "./protocol/debug-protocol";
 import {
     BaseMessage,
     DebugModule,
-    DebugPoint,
     MessageType,
     ModuleLoadMessage,
     DebugControlMessage,
