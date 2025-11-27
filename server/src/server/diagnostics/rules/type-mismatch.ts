@@ -723,6 +723,11 @@ export class TypeMismatchRule extends BaseDiagnosticRule {
             return true;
         }
 
+        // Special case: func types are compatible with methods and functions
+        if (normalizedTarget === 'func') {
+            return true;
+        }
+
         if (normalizedTarget === 'auto' || normalizedSource === 'auto') {
             return true;
         }
