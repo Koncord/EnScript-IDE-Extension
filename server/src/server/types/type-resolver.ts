@@ -825,7 +825,31 @@ export class TypeResolver implements ITypeResolver {
      * Resolve member expression type
      */
     private resolveMemberExpression(expr: MemberExpression, context: FileNode, doc?: TextDocument): string | null {
-        // Get the type of the object being accessed
+        // Check if the object is a class name for static member access (e.g., vector.Forward)
+        if (isIdentifier(expr.object)) {
+            const className = expr.object.name;
+            const classDefinitions = this.findAllClassDefinitions(className);
+            if (classDefinitions.length > 0) {
+                // This is static member access: ClassName.memberName
+                // Use the class name as the object type
+                const classDecl = mergeClassDefinitions(classDefinitions);
+                if (classDecl) {
+                    const memberName = expr.property.name;
+                    for (const member of classDecl.members || []) {
+                        if (member.name === memberName) {
+                            if (isVarDecl(member)) {
+                                return getTypeName(member.type);
+                            }
+                            if (isMethod(member)) {
+                                return getTypeName(member.returnType);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Get the type of the object being accessed (for instance member access)
         let objectType = this.resolveExpressionType(expr.object, context, doc);
         if (!objectType) {
             return null;

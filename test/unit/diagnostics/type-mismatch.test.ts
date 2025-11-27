@@ -1174,5 +1174,36 @@ class TestClass {
             // Should not flag vector arithmetic with method call returns
             expect(results).toHaveLength(0);
         });
+
+        it('should resolve static member access with arithmetic operations', async () => {
+            const code = `
+class vector {
+    static const vector Forward;
+}
+
+void Func() {
+    vector testVec = vector.Forward * 1.0;
+}`;
+            const results = await runDiagnosticRule(rule, code, testContext);
+
+            // vector.Forward should resolve to vector, vector * float should be vector
+            expect(results).toHaveLength(0);
+        });
+
+        it('should resolve static members in complex expressions', async () => {
+            const code = `
+class vector {
+    static const vector Forward;
+    static const vector Up;
+}
+
+void Func() {
+    vector result = vector.Forward * 2.0 + vector.Up * 1.5;
+}`;
+            const results = await runDiagnosticRule(rule, code, testContext);
+
+            // Should handle static member access in complex arithmetic
+            expect(results).toHaveLength(0);
+        });
     });
 });
