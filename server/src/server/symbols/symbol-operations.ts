@@ -38,10 +38,25 @@ import {
     AssignmentExpression,
     CastExpression,
     NewExpression,
-    Expression
+    Expression,
+    TypeNode
 } from '../ast/node-types';
 import { RenameTypeVisitor } from '../ast/rename-type-visitor';
-import { isClass, isIdentifier, isParameterDecl, isVarDecl } from '../../util';
+import {
+    isClass,
+    isIdentifier,
+    isParameterDecl,
+    isVarDecl,
+    isTypeReference,
+    isGenericType,
+    isAutoType,
+    isMemberExpression,
+    isCallExpression,
+    isBinaryExpression,
+    isAssignmentExpression,
+    isCastExpression,
+    isNewExpression
+} from '../../util';
 import { ITypeResolver } from '../types/type-resolver-interfaces';
 import { ISymbolOperations } from './symbol-operations-interfaces';
 import { injectable, inject } from 'inversify';
@@ -128,7 +143,32 @@ export class SymbolOperations implements ISymbolOperations {
 
             // Format the first symbol for hover display
             const symbol = symbols[0];
-            const formatted = formatDeclaration(symbol); // Already includes code fence
+            let formatted = formatDeclaration(symbol); // Already includes code fence
+
+            // For parameters and variables with generic or auto types, show the inferred type
+            if ((isParameterDecl(symbol) || isVarDecl(symbol)) && symbol.type) {
+                const declaredType = this.getTypeNameFromNode(symbol.type);
+
+                // Check if it's a generic type parameter or auto
+                if (this.isGenericTypeParameter(declaredType) || declaredType === 'auto') {
+                    // Get the AST at the hover position to find what's actually being used
+                    const currentUri = normalizeUri(doc.uri);
+                    const currentAst = this.cacheManager.getDocCache().get(currentUri);
+
+                    if (currentAst) {
+                        // Find the expression at the cursor position and resolve its type
+                        const expr = this.findExpressionAtPosition(currentAst, position);
+                        if (expr) {
+                            const inferredType = this.typeResolver.resolveExpressionType(expr, currentAst, doc);
+
+                            if (inferredType && inferredType !== declaredType && !this.isGenericTypeParameter(inferredType)) {
+                                // Add inferred type information
+                                formatted += `\n\n*Inferred type:* \`${inferredType}\``;
+                            }
+                        }
+                    }
+                }
+            }
 
             // Build location information
             let locationInfo = '';
@@ -136,7 +176,7 @@ export class SymbolOperations implements ISymbolOperations {
             // If it's a class with modded versions, show all locations (up to 5 modded)
             if (isClass(symbol) && symbols.length > 1) {
                 const displayPath = uriToDisplayPath(symbols[0].uri);
-                const clickableLink = this.makeClickableLink(symbols[0].uri, displayPath);
+                const clickableLink = this.makeClickableLinkWithPosition(symbols[0], displayPath);
                 locationInfo = `\n\n*Defined in:* ${clickableLink}`;
 
                 // Show up to 5 modded class locations
@@ -145,7 +185,7 @@ export class SymbolOperations implements ISymbolOperations {
                     locationInfo += '\n\n*Modded in:*';
                     for (const moddedSymbol of moddedSymbols) {
                         const moddedPath = uriToDisplayPath(moddedSymbol.uri);
-                        const moddedLink = this.makeClickableLink(moddedSymbol.uri, moddedPath);
+                        const moddedLink = this.makeClickableLinkWithPosition(moddedSymbol, moddedPath);
                         locationInfo += `\n- ${moddedLink}`;
                     }
 
@@ -158,7 +198,7 @@ export class SymbolOperations implements ISymbolOperations {
             } else {
                 // Single definition (non-class or class without modded versions)
                 const displayPath = uriToDisplayPath(symbol.uri);
-                const clickableLink = this.makeClickableLink(symbol.uri, displayPath);
+                const clickableLink = this.makeClickableLinkWithPosition(symbol, displayPath);
                 locationInfo = `\n\n*Defined in:* ${clickableLink}`;
             }
 
@@ -168,6 +208,215 @@ export class SymbolOperations implements ISymbolOperations {
             Logger.error('Error in getHover:', error);
             return null;
         }
+    }
+
+    /**
+     * Get type name from TypeNode (handles generics, arrays, etc.)
+     */
+    private getTypeNameFromNode(typeNode: TypeNode): string {
+        if (!typeNode) return 'unknown';
+
+        if (isTypeReference(typeNode)) {
+            return typeNode.name;
+        }
+        if (isGenericType(typeNode)) {
+            const baseName = this.getTypeNameFromNode(typeNode.baseType);
+            const args = typeNode.typeArguments.map((arg: TypeNode) => this.getTypeNameFromNode(arg)).join(',');
+            return `${baseName}<${args}>`;
+        }
+        if (typeNode.kind === 'ArrayType') {
+            return this.getTypeNameFromNode(typeNode.elementType) + '[]';
+        }
+        if (isAutoType(typeNode)) {
+            return 'auto';
+        }
+        return 'unknown';
+    }
+
+    /**
+     * Check if a type name is a generic type parameter (like T, T1, T2, etc.)
+     */
+    private isGenericTypeParameter(typeName: string): boolean {
+        // Generic type parameters are typically single uppercase letters or T followed by number
+        return /^T\d*$/.test(typeName) || /^[A-Z]$/.test(typeName);
+    }
+
+    /**
+     * Find the expression node at a specific position in the AST
+     * Prefers MemberExpression over Identifier when both contain the position
+     */
+    private findExpressionAtPosition(node: ASTNode, position: Position): Expression | null {
+        if (!node) return null;
+
+        // Helper to check if position is within node
+        const isPositionInNode = (n: ASTNode): boolean => {
+            if (!n.start || !n.end) return false;
+            if (position.line < n.start.line || position.line > n.end.line) return false;
+            if (position.line === n.start.line && position.character < n.start.character) return false;
+            if (position.line === n.end.line && position.character > n.end.character) return false;
+            return true;
+        };
+
+        // Helper to update currentBest, preferring MemberExpression over Identifier
+        const updateBest = (current: Expression | null, candidate: Expression | null): Expression | null => {
+            if (!candidate) return current;
+            if (!current) return candidate;
+            // Prefer MemberExpression over Identifier
+            if (candidate.kind === 'MemberExpression') return candidate;
+            if (current.kind === 'Identifier' && candidate.kind !== 'Identifier') return candidate;
+            return current;
+        };
+
+        // Recursively find all expressions at this position, preferring more specific ones
+        const findBestExpression = (n: ASTNode): Expression | null => {
+            if (!isPositionInNode(n)) return null;
+
+            let currentBest: Expression | null = null;
+
+            // Check if this node itself is an expression
+            if (isMemberExpression(n) || isIdentifier(n) || isCallExpression(n) ||
+                isBinaryExpression(n) || isAssignmentExpression(n) || isCastExpression(n) ||
+                isNewExpression(n)) {
+                currentBest = n as Expression;
+            }
+
+            // Search children based on node type
+            switch (n.kind) {
+                case 'File':
+                    for (const decl of (n as FileNode).body) {
+                        currentBest = updateBest(currentBest, findBestExpression(decl));
+                    }
+                    break;
+
+                case 'ClassDecl':
+                    for (const member of (n as ClassDeclNode).members) {
+                        currentBest = updateBest(currentBest, findBestExpression(member));
+                    }
+                    break;
+
+                case 'FunctionDecl':
+                case 'MethodDecl':
+                case 'ProtoMethodDecl':
+                    const funcNode = n as FunctionDeclNode;
+                    if (funcNode.body) {
+                        currentBest = updateBest(currentBest, findBestExpression(funcNode.body));
+                    }
+                    break;
+
+                case 'BlockStatement':
+                    for (const stmt of (n as BlockStatement).body) {
+                        currentBest = updateBest(currentBest, findBestExpression(stmt));
+                    }
+                    break;
+
+                case 'DeclarationStatement':
+                    const declStmt = n as DeclarationStatement;
+                    if (declStmt.declarations && declStmt.declarations.length > 0) {
+                        for (const decl of declStmt.declarations) {
+                            currentBest = updateBest(currentBest, findBestExpression(decl));
+                        }
+                    } else if (declStmt.declaration) {
+                        currentBest = updateBest(currentBest, findBestExpression(declStmt.declaration));
+                    }
+                    break;
+
+                case 'VarDecl':
+                    const varDecl = n as VarDeclNode;
+                    if (varDecl.initializer) {
+                        currentBest = updateBest(currentBest, findBestExpression(varDecl.initializer));
+                    }
+                    break;
+
+                case 'ExpressionStatement':
+                    currentBest = updateBest(currentBest, findBestExpression((n as ExpressionStatement).expression));
+                    break;
+
+                case 'ReturnStatement':
+                    const retStmt = n as ReturnStatement;
+                    if (retStmt.argument) {
+                        currentBest = updateBest(currentBest, findBestExpression(retStmt.argument));
+                    }
+                    break;
+
+                case 'IfStatement':
+                    const ifStmt = n as IfStatement;
+                    currentBest = updateBest(currentBest, findBestExpression(ifStmt.test));
+                    currentBest = updateBest(currentBest, findBestExpression(ifStmt.consequent));
+                    if (ifStmt.alternate) {
+                        currentBest = updateBest(currentBest, findBestExpression(ifStmt.alternate));
+                    }
+                    break;
+
+                case 'WhileStatement':
+                    const whileStmt = n as WhileStatement;
+                    currentBest = updateBest(currentBest, findBestExpression(whileStmt.test));
+                    currentBest = updateBest(currentBest, findBestExpression(whileStmt.body));
+                    break;
+
+                case 'ForStatement':
+                    const forStmt = n as ForStatement;
+                    if (forStmt.init) {
+                        currentBest = updateBest(currentBest, findBestExpression(forStmt.init));
+                    }
+                    if (forStmt.test) {
+                        currentBest = updateBest(currentBest, findBestExpression(forStmt.test));
+                    }
+                    if (forStmt.update) {
+                        currentBest = updateBest(currentBest, findBestExpression(forStmt.update));
+                    }
+                    currentBest = updateBest(currentBest, findBestExpression(forStmt.body));
+                    break;
+
+                case 'CallExpression':
+                    const callExpr = n as CallExpression;
+                    currentBest = updateBest(currentBest, findBestExpression(callExpr.callee));
+                    for (const arg of callExpr.arguments) {
+                        currentBest = updateBest(currentBest, findBestExpression(arg));
+                    }
+                    break;
+
+                case 'MemberExpression':
+                    const memberExpr = n as MemberExpression;
+                    currentBest = updateBest(currentBest, findBestExpression(memberExpr.object));
+                    // Note: Don't search 'property' as it's the member name, not an expression context
+                    break;
+
+                case 'BinaryExpression':
+                    const binaryExpr = n as BinaryExpression;
+                    currentBest = updateBest(currentBest, findBestExpression(binaryExpr.left));
+                    currentBest = updateBest(currentBest, findBestExpression(binaryExpr.right));
+                    break;
+
+                case 'UnaryExpression':
+                    const unaryExpr = n as UnaryExpression;
+                    currentBest = updateBest(currentBest, findBestExpression(unaryExpr.operand));
+                    break;
+
+                case 'AssignmentExpression':
+                    const assignExpr = n as AssignmentExpression;
+                    currentBest = updateBest(currentBest, findBestExpression(assignExpr.left));
+                    currentBest = updateBest(currentBest, findBestExpression(assignExpr.right));
+                    break;
+
+                case 'CastExpression':
+                    const castExpr = n as CastExpression;
+                    currentBest = updateBest(currentBest, findBestExpression(castExpr.expression));
+                    break;
+
+                case 'NewExpression':
+                    const newExpr = n as NewExpression;
+                    if (newExpr.arguments) {
+                        for (const arg of newExpr.arguments) {
+                            currentBest = updateBest(currentBest, findBestExpression(arg));
+                        }
+                    }
+                    break;
+            }
+
+            return currentBest;
+        };
+
+        return findBestExpression(node);
     }
 
     /**
@@ -186,14 +435,22 @@ export class SymbolOperations implements ISymbolOperations {
     }
 
     /**
-     * Create a clickable markdown link for a file path
-     * @param uri The URI of the file
+     * Create a clickable markdown link to a file with position
+     * @param symbol The symbol with location information
      * @param displayPath The human-readable path to display
-     * @returns A markdown link that opens the file when clicked
+     * @returns A markdown link that opens the file at the exact position
      */
-    private makeClickableLink(uri: string, displayPath: string): string {
-        // Use markdown link format: [display text](uri)
-        // The URI should already be normalized by normalizeUri
+    private makeClickableLinkWithPosition(symbol: SymbolLookupResult, displayPath: string): string {
+        let uri = symbol.uri;
+
+        // Add line and column to URI if available (VS Code format: file://path#L10:5)
+        if (symbol.start) {
+            // LSP uses 0-indexed, VS Code uses 1-indexed for display
+            const line = symbol.start.line + 1;
+            const col = symbol.start.character + 1;
+            uri += `#L${line}:${col}`;
+        }
+
         return `[${displayPath}](${uri})`;
     }
 
