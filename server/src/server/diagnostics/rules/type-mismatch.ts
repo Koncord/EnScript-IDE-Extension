@@ -352,6 +352,13 @@ export class TypeMismatchRule extends BaseDiagnosticRule {
                     continue;
                 }
 
+                // Special case: null can be assigned to 'out' parameters
+                // out parameters are used for output values and can accept null
+                // Example: RayCastBullet(..., out Object hitObject, out vector hitPosition, ...)
+                if (argType === 'null' && param.modifiers && param.modifiers.includes('out')) {
+                    continue;
+                }
+
                 // Check for special implicit conversions
                 const conversionResult = this.checkImplicitConversion(paramType, argType, arg);
                 if (conversionResult) {

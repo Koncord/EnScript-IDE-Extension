@@ -721,13 +721,24 @@ ${examples.good}
         // Nested member expression (e.g., a.b in a.b.c())
         // This is always an instance call
         if (isMemberExpression(objectExpr)) {
-            // First resolve the type of the nested member expression
+            // Use the type resolver's resolveExpressionType which handles generic type substitution
+            if (context.typeResolver) {
+                const propertyType = context.typeResolver.resolveExpressionType(
+                    objectExpr,
+                    context.ast,
+                    context.document
+                );
+                if (propertyType && propertyType !== 'unknown') {
+                    return { typeName: propertyType, isStaticAccess: false, isSuperAccess: false };
+                }
+            }
+
+            // Fallback to manual resolution if type resolver fails
             const nestedResult = await this.resolveExpressionType(objectExpr.object, position, context);
             if (!nestedResult) {
                 return null;
             }
 
-            // Then find the type of the property on that type
             const propertyName = objectExpr.property.name;
             const propertyType = await this.resolvePropertyOrFieldType(nestedResult.typeName, propertyName, context);
             if (!propertyType) {

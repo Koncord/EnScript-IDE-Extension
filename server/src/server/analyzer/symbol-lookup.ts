@@ -362,7 +362,6 @@ function findGlobalSymbol(
 }
 
 function detectMemberAccess(ast: ASTNode, position: Position): { objectExpression: string } | null {
-
     // Recursively traverse AST to find MemberExpression at position
     function findMemberExpression(node: ASTNode): MemberExpression | null {
         if (!node) {
@@ -378,28 +377,27 @@ function detectMemberAccess(ast: ASTNode, position: Position): { objectExpressio
             // Even if not on property, continue searching in children (for nested member expressions)
         }
 
-        // Check common child node properties (including body, members, statements, etc.)
-        const childKeys = ['body', 'members', 'statements', 'declarations', 'declaration', 'expression',
-            'init', 'test', 'update', 'consequent', 'alternate',
-            'left', 'right', 'object', 'property',
-            'callee', 'arguments', 'params', 'parameters', 'returnType', 'initializer'];
+        // Traverse ALL properties of the node to ensure we don't miss anything
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        for (const key in node as any) {
+            // Skip metadata properties
+            if (key === 'kind' || key === 'start' || key === 'end' || key === 'parent') {
+                continue;
+            }
 
-        for (const key of childKeys) {
-            if (key in node) {
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const child = (node as any)[key];
-                if (child && typeof child === 'object') {
-                    if (Array.isArray(child)) {
-                        for (const item of child) {
-                            if (item && typeof item === 'object' && 'kind' in item) {
-                                const found = findMemberExpression(item);
-                                if (found) return found;
-                            }
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const child = (node as any)[key];
+            if (child && typeof child === 'object') {
+                if (Array.isArray(child)) {
+                    for (const item of child) {
+                        if (item && typeof item === 'object' && 'kind' in item) {
+                            const found = findMemberExpression(item);
+                            if (found) return found;
                         }
-                    } else if ('kind' in child) {
-                        const found = findMemberExpression(child);
-                        if (found) return found;
                     }
+                } else if ('kind' in child) {
+                    const found = findMemberExpression(child);
+                    if (found) return found;
                 }
             }
         }
@@ -482,6 +480,60 @@ function buildMemberChain(memberExpr: MemberExpression): string | null {
 }
 
 /**
+ * Find a member expression AST node that matches the given object name string
+ * e.g., for "p.param2", finds the MemberExpression node in the AST
+ */
+function findMemberExpressionForName(ast: ASTNode, targetName: string, position: Position): MemberExpression | null {
+    function traverse(node: ASTNode): MemberExpression | null {
+        if (!node) return null;
+
+        // If this is a member expression near the position, check if it matches
+        if (isMemberExpression(node) && isPositionNearNode(node, position, 100)) {
+            const builtName = buildObjectExpression(node);
+            if (builtName === targetName) {
+                return node;
+            }
+        }
+
+        // Traverse children
+        const childKeys = ['body', 'members', 'statements', 'declarations', 'declaration', 'expression',
+            'init', 'test', 'update', 'consequent', 'alternate',
+            'left', 'right', 'object', 'property',
+            'callee', 'arguments', 'params', 'parameters', 'returnType', 'initializer'];
+
+        for (const key of childKeys) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const child = (node as any)[key];
+            if (child && typeof child === 'object') {
+                if (Array.isArray(child)) {
+                    for (const item of child) {
+                        if (item && typeof item === 'object' && 'kind' in item) {
+                            const found = traverse(item);
+                            if (found) return found;
+                        }
+                    }
+                } else if ('kind' in child) {
+                    const found = traverse(child);
+                    if (found) return found;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    return traverse(ast);
+}
+
+/**
+ * Check if position is near a node (within a certain line distance)
+ */
+function isPositionNearNode(node: ASTNode, position: Position, maxDistance: number): boolean {
+    if (!node.start || !node.end) return false;
+    return Math.abs(node.start.line - position.line) <= maxDistance;
+}
+
+/**
  * Find the definition of a member (method or field) given the object name
  * Uses shared member-utils for consistent member lookup with inheritance support
  */
@@ -528,8 +580,27 @@ async function findMemberDefinitionAsync(
         return [];
     }
 
-    // Use type-resolver to determine the object's type (for instance member access)
-    const objectType = typeResolver.resolveObjectType(objectName, doc, position);
+    // Try to resolve using resolveObjectType for simple identifiers
+    let objectType = typeResolver.resolveObjectType(objectName, doc, position);
+
+    // If objectName contains a dot (like "p.param2"), it's a member expression
+    // Use AST-based resolution which properly handles generic type substitution
+    if (objectName.includes('.')) {
+        const currentUri = normalizeUri(doc.uri);
+        const currentAst = docCache.get(currentUri);
+        if (currentAst) {
+            // Find the member expression AST node for this object
+            const memberExpr = findMemberExpressionForName(currentAst, objectName, position);
+            if (memberExpr) {
+                // Use type resolver's resolveExpressionType which handles generic type substitution
+                const resolvedType = typeResolver.resolveExpressionType(memberExpr, currentAst, doc);
+                if (resolvedType && resolvedType !== 'unknown') {
+                    objectType = resolvedType;
+                    Logger.debug(`🔍 Resolved expression '${objectName}' to type: ${objectType} (via AST)`);
+                }
+            }
+        }
+    }
 
     if (!objectType) {
         Logger.debug(`❌ Could not resolve type for object: ${objectName}`);

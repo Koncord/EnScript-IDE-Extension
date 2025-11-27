@@ -355,7 +355,7 @@ class TestClass {
 }`;
             const results = await runDiagnosticRule(rule, code, testContext);
 
-            expectDiagnosticWithMessage(results, "Method 'm_NonExistentMember' is not declared");
+            expectDiagnosticWithMessage(results, "Method 'm_NonExistentMember' is not declared on class 'PlayerBase'");
         });
     });
 });

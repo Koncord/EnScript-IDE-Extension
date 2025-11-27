@@ -6,29 +6,34 @@ import { Token } from '../lexer/token';
  * Lexes only a small window around the position for performance.
  */
 export function getTokenAtPosition(text: string, offset: number): Token | null {
-    const windowSize = 64;
-    let start = Math.max(0, offset - windowSize);
-    const end = Math.min(text.length, offset + windowSize);
-
-    // Extend the start backwards to ensure we don't start in the middle of a string or comment
-    // Look for safe starting points (whitespace, line breaks, or word boundaries)
-    while (start > 0 && start < offset) {
-        const char = text[start];
-        const prevChar = text[start - 1];
-
-        // Safe to start after whitespace, line breaks, or certain punctuation
-        if (/\s/.test(char) || /[;{}()[\],.]/.test(prevChar)) {
-            break;
-        }
-        start--;
+    // Check if we're actually on a word character (not whitespace/punctuation)
+    const charAtPos = text[offset];
+    if (!charAtPos || !/[a-zA-Z0-9_]/.test(charAtPos)) {
+        return null;
     }
 
-    const slice = text.slice(start, end);
+    // Find the start of the current line
+    let lineStart = offset;
+    while (lineStart > 0 && text[lineStart - 1] !== '\n') {
+        lineStart--;
+    }
+
+    // Find the end of the current line (or use a reasonable window)
+    let lineEnd = offset;
+    const maxWindow = 200; // Maximum characters to lex
+    const endBound = Math.min(text.length, lineStart + maxWindow);
+    while (lineEnd < endBound && text[lineEnd] !== '\n') {
+        lineEnd++;
+    }
+
+    // Lex from the start of the line to get proper context
+    const slice = text.slice(lineStart, lineEnd);
     const tokens = lex(slice);
 
+    // Find exact token at position
     for (const t of tokens) {
-        const absStart = start + t.start;
-        const absEnd = start + t.end;
+        const absStart = lineStart + t.start;
+        const absEnd = lineStart + t.end;
 
         if (offset >= absStart && offset <= absEnd) {
             return {

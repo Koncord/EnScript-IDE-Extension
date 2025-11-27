@@ -55,7 +55,16 @@ export class UndeclaredMethodRule extends UndeclaredEntityRule {
             return [];
         }
 
-        const { typeName: objectType, isStaticAccess, isSuperAccess } = resolutionResult;
+        let { typeName: objectType, isStaticAccess, isSuperAccess } = resolutionResult;
+
+        // Resolve typedef to underlying type (e.g., "PlayerList" -> "array<Player>")
+        if (context.typeResolver) {
+            const resolvedType = context.typeResolver.resolveTypedefToClassName(objectType);
+            if (resolvedType) {
+                Logger.debug(`UndeclaredMethodRule: Resolved typedef '${objectType}' -> '${resolvedType}'`);
+                objectType = resolvedType;
+            }
+        }
 
         // Skip if objectType is an enum - enum member access is handled by undeclared-enum-member rule
         if (this.isEnumName(objectType, context)) {
@@ -65,10 +74,13 @@ export class UndeclaredMethodRule extends UndeclaredEntityRule {
         // Determine if we should allow private methods
         // Private methods are allowed when called from within the same class
         const containingClass = this.findContainingClass(node, context);
-        const allowPrivate = containingClass !== null && containingClass.name === objectType;
+        const allowPrivate = containingClass !== null && containingClass.name === resolutionResult.typeName;
 
+        // Check if objectType is a generic parameter that couldn't be resolved
+        // If the type resolver returned a generic parameter (T, T1, T2, etc.), it means
+        // it couldn't substitute it with a concrete type, so we skip validation
         if (this.isGenericParameter(objectType, node, context, containingClass)) {
-            Logger.debug(`UndeclaredMethodRule: Skipping generic parameter '${objectType}'`);
+            Logger.debug(`UndeclaredMethodRule: Skipping unresolved generic parameter '${objectType}'`);
             return [];
         }
 
@@ -105,7 +117,8 @@ export class UndeclaredMethodRule extends UndeclaredEntityRule {
                 methodName,
                 node.memberStart,
                 node.memberEnd,
-                config
+                config,
+                `on class '${objectType}'`
             )
         ];
     }
