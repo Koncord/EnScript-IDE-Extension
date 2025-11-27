@@ -784,22 +784,21 @@ export class TypeResolver implements ITypeResolver {
 
             // Special handling for Cast method: ClassName.Cast(obj) returns ClassName
             if (isIdentifier(memberExpr.property) && memberExpr.property.name === 'Cast') {
-                // Try to resolve the object (left side of the dot)
-                const objectType = this.resolveExpressionType(memberExpr.object, context, doc);
-
-                // If objectType is null, the object might be a class name (static call)
-                if (!objectType && isIdentifier(memberExpr.object)) {
+                // Check if the object is a class name FIRST (before resolving as variable)
+                if (isIdentifier(memberExpr.object)) {
                     const className = memberExpr.object.name;
                     // Check if this is actually a class name
                     const classDefinitions = this.findAllClassDefinitions(className);
                     if (classDefinitions.length > 0) {
+                        // This is ClassName.Cast(...) - return the class name
                         return className;
                     }
                 }
 
-                // If we resolved objectType, it means instance.Cast() which shouldn't happen
-                // but if it does, return the object's type
+                // Not a class name, try to resolve as an expression (e.g., variable.Cast())
+                const objectType = this.resolveExpressionType(memberExpr.object, context, doc);
                 if (objectType) {
+                    // instance.Cast() - return the instance's type
                     return objectType;
                 }
             }
