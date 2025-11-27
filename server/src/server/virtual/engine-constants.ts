@@ -62,6 +62,37 @@ const int UADefaultAction = 3;
 const int UAGear = 4;
 const int UATempRaiseWeapon = 5;
 
+
+const int TextWidgetTypeID = 0;
+const int MultilineTextWidgetTypeID = 1;
+const int MultilineEditBoxWidgetTypeID = 2;
+const int RichTextWidgetTypeID = 3;
+const int RenderTargetWidgetTypeID = 4;
+const int ImageWidgetTypeID = 5;
+const int ConsoleWidgetTypeID = 6;
+const int VideoWidgetTypeID = 7;
+const int RTTextureWidgetTypeID = 8;
+const int FrameWidgetTypeID = 9;
+const int EmbededWidgetTypeID = 10;
+const int ButtonWidgetTypeID = 11;
+const int CheckBoxWidgetTypeID = 12;
+const int WindowWidgetTypeID = 13;
+const int ComboBoxWidgetTypeID = 14;
+const int SimpleProgressBarWidgetTypeID = 15;
+const int ProgressBarWidgetTypeID = 16;
+const int SliderWidgetTypeID = 17;
+const int BaseListboxWidgetTypeID = 18;
+const int TextListboxWidgetTypeID = 19;
+const int GenericListboxWidgetTypeID = 20;
+const int EditBoxWidgetTypeID = 21;
+const int PasswordEditBoxWidgetTypeID = 22;
+const int WorkspaceWidgetTypeID = 23;
+const int GridSpacerWidgetTypeID = 24;
+const int WrapSpacerWidgetTypeID = 25;
+const int ScrollWidgetTypeID = 26;
+
+const int MB_PRESSED_MASK = 1;
+
 `;
 
 /**
