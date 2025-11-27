@@ -263,7 +263,7 @@ export async function findExactDefinition(
                 const classDefs = typeResolver.findAllClassDefinitions(className);
                 return mergeClassDefinitions(classDefs);
             },
-            false, // Don't include private members from base classes
+            true, // Include private members when searching in current class
             new Set()
         );
 

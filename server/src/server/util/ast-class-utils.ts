@@ -374,6 +374,8 @@ export function findMemberInClassWithInheritance(
             if (!isPrivate || includePrivate) {
                 return member;
             }
+            // Found but it's private and we shouldn't include it
+            return null;
         }
     }
 
