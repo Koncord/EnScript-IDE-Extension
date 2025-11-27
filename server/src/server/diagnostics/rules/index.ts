@@ -9,6 +9,7 @@ export { UndeclaredEntityRule } from './undeclared-entity-base';
 export { StaticInstanceMismatchRule } from './static-instance-mismatch';
 export { TypeMismatchRule } from './type-mismatch';
 export { IncorrectRefUsageRule } from './incorrect-ref-usage';
+export { VariableShadowingRule } from './variable-shadowing';
 
 import { DiagnosticRule } from '../rules';
 import { UnusedTypedefRule } from './unused-typedef';
@@ -21,6 +22,7 @@ import { UndeclaredBaseClassRule } from './undeclared-base-class';
 import { StaticInstanceMismatchRule } from './static-instance-mismatch';
 import { TypeMismatchRule } from './type-mismatch';
 import { IncorrectRefUsageRule } from './incorrect-ref-usage';
+import { VariableShadowingRule } from './variable-shadowing';
 import { DiagnosticRuleRegistry } from '../registry';
 
 /**
@@ -37,7 +39,8 @@ export function getBuiltInRules(): DiagnosticRule[] {
         new UndeclaredBaseClassRule(),
         new StaticInstanceMismatchRule(),
         new TypeMismatchRule(),
-        new IncorrectRefUsageRule()
+        new IncorrectRefUsageRule(),
+        new VariableShadowingRule()
     ];
 }
 
@@ -93,5 +96,9 @@ export function registerBuiltInRules(registry: DiagnosticRuleRegistry): void {
     // Best practice rules
     registry.register(new IncorrectRefUsageRule(), {
         priority: 90 // Check for best practices
+    });
+
+    registry.register(new VariableShadowingRule(), {
+        priority: 85 // Warning rule, run after critical checks
     });
 }
