@@ -826,10 +826,14 @@ export class TypeResolver implements ITypeResolver {
      */
     private resolveMemberExpression(expr: MemberExpression, context: FileNode, doc?: TextDocument): string | null {
         // Get the type of the object being accessed
-        const objectType = this.resolveExpressionType(expr.object, context, doc);
+        let objectType = this.resolveExpressionType(expr.object, context, doc);
         if (!objectType) {
             return null;
         }
+
+        // Check if objectType is a typedef - if so, resolve it to the underlying type
+        // This handles cases like: typedef Param2<string, string> TestParams;
+        objectType = this.resolveTypedefToFullType(objectType) || objectType;
 
         // Parse generic type if present (e.g., "array<PlayerBase>" -> base: "array", args: ["PlayerBase"])
         const genericInfo = parseGenericType(objectType);
@@ -1700,6 +1704,27 @@ export class TypeResolver implements ITypeResolver {
 
         // Extract the base type name (handles generic types)
         return extractTypeName(typedef.type);
+    }
+
+    /**
+     * Resolve typedef to its full underlying type including generic arguments
+     * E.g., "TestParams" (typedef Param2<string, string> TestParams) -> "Param2<string,string>"
+     * This preserves the complete type information for member access resolution
+     */
+    private resolveTypedefToFullType(typeName: string): string | null {
+        const typedefs = this.findAllTypedefDefinitions(typeName);
+        if (typedefs.length === 0) {
+            return null;
+        }
+
+        // Get the target type from the typedef
+        const typedef = typedefs[0];
+        if (!typedef.type) {
+            return null;
+        }
+
+        // Use getTypeName to get the full type string including generic arguments
+        return getTypeName(typedef.type);
     }
 
     /**
