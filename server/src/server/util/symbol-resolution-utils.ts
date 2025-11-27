@@ -883,7 +883,33 @@ export function checkInheritanceChain(
     }
     visited.add(classDef.name);
 
-    if (!classDef.baseClass || !context.typeResolver) {
+    if (!context.typeResolver) {
+        return false;
+    }
+
+    // Check if this is a modded class (modded classes don't have baseClass)
+    const isModdedClass = classDef.modifiers?.includes('modded') || false;
+    if (isModdedClass) {
+        Logger.debug(`checkInheritanceChain: Found modded class '${classDef.name}', looking for original definition`);
+        const originalClassDefs = context.typeResolver.findAllClassDefinitions(classDef.name);
+        const nonModdedDefs = originalClassDefs.filter(def => !def.modifiers?.includes('modded'));
+        
+        Logger.debug(`checkInheritanceChain: Found ${nonModdedDefs.length} non-modded definitions for '${classDef.name}'`);        
+
+        for (const originalDef of nonModdedDefs) {
+            const newVisited = new Set(visited);
+            newVisited.delete(classDef.name);
+            
+            if (checkInheritanceChain(originalDef, targetClass, context, newVisited)) {
+                return true;
+            }
+        }
+
+        Logger.debug(`checkInheritanceChain: No original class found for modded class '${classDef.name}' - assuming inheritance is valid to avoid false positives`);
+        return true;
+    }
+
+    if (!classDef.baseClass) {
         return false;
     }
 

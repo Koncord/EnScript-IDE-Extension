@@ -5,9 +5,20 @@ class Class {
     proto static Class Cast(Class from);
 }
 
-class Entity extends Class {}
 
-class Man extends Entity {}
+class Managed extends Class {}
+
+class IEntity extends Managed {}
+
+class Object extends IEntity {}
+
+class ObjectTyped extends Object {}
+
+class Entity extends ObjectTyped {}
+
+class EntityAI extends Entity {}
+
+class Man extends EntityAI {}
 
 class PlayerBase extends Man {
     void SomeMethod() {}
