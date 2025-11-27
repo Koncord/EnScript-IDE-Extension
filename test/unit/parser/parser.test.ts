@@ -647,7 +647,7 @@ int valid;`;
             // Should have at least one error diagnostic
             const errors = diagnostics.filter(d => d.severity === 1); // 1 = Error
             expect(errors.length).toBeGreaterThan(0);
-            
+
             // Check that the error mentions the problem with the identifier
             const errorMessages = errors.map(e => e.message).join(' ');
             expect(errorMessages).toMatch(/identifier/i);
@@ -661,6 +661,71 @@ int valid;`;
             expect(file).toBeDefined();
             const errors = diagnostics.filter(d => d.severity === 1);
             expect(errors.length).toBeGreaterThan(0);
+        });
+    });
+
+    describe('Thread Keyword', () => {
+        it('should parse thread keyword for function calls', () => {
+            const code = `void test() {
+    thread myFunction();
+}`;
+            const { file, diagnostics } = parseCode(code);
+
+            expect(file.body).toHaveLength(1);
+            const funcDecl = file.body[0] as FunctionDeclNode;
+            expect(funcDecl.body).toBeDefined();
+
+            // Should not have critical errors
+            const errors = diagnostics.filter(d => d.severity === 1);
+            expect(errors.length).toBe(0);
+        });
+
+        it('should parse thread keyword for method calls in a class', () => {
+            const code = `class MyTestClass {
+    void Method() {
+        thread _MyThread();
+    }
+
+    void _MyThread() {
+        // ...
+    }
+}`;
+            const { file, diagnostics } = parseCode(code);
+
+            expect(file.body).toHaveLength(1);
+            const classDecl = file.body[0] as ClassDeclNode;
+            expect(classDecl.name).toBe('MyTestClass');
+            expect(classDecl.members.length).toBe(2);
+
+            // Should not have critical errors
+            const errors = diagnostics.filter(d => d.severity === 1);
+            expect(errors.length).toBe(0);
+        });
+
+        it('should parse thread keyword with member method calls', () => {
+            const code = `void test() {
+    thread obj.method();
+}`;
+            const { file, diagnostics } = parseCode(code);
+
+            expect(file.body).toHaveLength(1);
+
+            // Should not have critical errors
+            const errors = diagnostics.filter(d => d.severity === 1);
+            expect(errors.length).toBe(0);
+        });
+
+        it('should parse thread keyword with parameters', () => {
+            const code = `void test() {
+    thread processData(arg1, arg2);
+}`;
+            const { file, diagnostics } = parseCode(code);
+
+            expect(file.body).toHaveLength(1);
+
+            // Should not have critical errors
+            const errors = diagnostics.filter(d => d.severity === 1);
+            expect(errors.length).toBe(0);
         });
     });
 });

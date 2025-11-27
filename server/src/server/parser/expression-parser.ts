@@ -914,7 +914,8 @@ export class ExpressionParser {
     }
 
     private isKeywordUnaryOperator(token: Token): boolean {
-        return token.kind === TokenKind.KeywordControl && token.value === 'delete';
+        return token.kind === TokenKind.KeywordControl && 
+               (token.value === 'delete' || token.value === 'thread');
     }
 
     private isLiteral(token: Token): boolean {

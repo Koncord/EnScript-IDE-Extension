@@ -16,7 +16,7 @@ export const typeKeywords = new Set([
 
 export const controlKeywords = new Set([
     'if', 'else', 'for', 'foreach', 'while', 'switch', 'case', 'default',
-    'break', 'continue', 'return', 'extends', 'new', 'delete'
+    'break', 'continue', 'return', 'extends', 'new', 'delete', 'thread'
 ]);
 
 export const storageKeywords = new Set([
