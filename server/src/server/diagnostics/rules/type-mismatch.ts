@@ -45,7 +45,9 @@ import {
     normalizeTypeName,
     isGenericTypeParameter,
     areNumericTypesCompatible
-} from '../../util/type-utils';/**
+} from '../../util/type-utils';
+
+/**
  * Rule for detecting type mismatches in assignments, returns, and function calls.
  * 
  * This rule checks for type compatibility in various contexts:

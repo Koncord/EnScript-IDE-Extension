@@ -33,7 +33,9 @@ import {
     CastExpression,
     Literal,
     ArrayLiteralExpression,
-    VectorLiteral
+    VectorLiteral,
+    GenericTypeNode,
+    TypeNode
 } from '../ast/node-types';
 import { Logger } from '../../util/logger';
 import { extractTypeName } from './symbol-resolution-utils';
@@ -180,6 +182,10 @@ export function isTypeReference(node?: ASTNode): node is TypeReferenceNode {
     return node != null && node.kind === 'TypeReference';
 }
 
+export function isGenericType(node?: ASTNode): node is GenericTypeNode {
+    return node != null && node.kind === 'GenericType';
+}
+
 export function isMethod(member?: ASTNode): member is MethodDeclNode {
     return member != null && (member.kind === 'MethodDecl' || member.kind === 'ProtoMethodDecl');
 }
@@ -206,6 +212,26 @@ export function isVarDecl(member?: ASTNode): member is VarDeclNode {
 
 export function isParameterDecl(member?: ASTNode): member is ParameterDeclNode {
     return member != null && member.kind === 'ParameterDecl';
+}
+
+/**
+ * Checks if a type node has a ref modifier
+ * This handles both TypeReferenceNode and GenericTypeNode (which wraps a TypeReference with ref)
+ */
+export function hasRefModifier(type?: TypeNode): boolean {
+    if (!type) {
+        return false;
+    }
+    
+    if (isTypeReference(type)) {
+        return type.modifiers?.includes('ref') ?? false;
+    }
+
+    if (isGenericType(type)) {
+        return hasRefModifier(type.baseType);
+    }
+    
+    return false;
 }
 
 /**
