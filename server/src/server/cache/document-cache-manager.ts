@@ -123,7 +123,8 @@ export class DocumentCacheManager implements IDocumentCacheManager {
             ...defaultConfig,
             preprocessorDefinitions: new Set(options.preprocessorDefinitions || this.preprocessorConfig.getDefinitions()),
             errorRecovery: true, // Enable error recovery to capture parsing errors
-            skipFunctionBodies: options.skipFunctionBodies || false // Skip bodies for external stubs
+            skipFunctionBodies: options.skipFunctionBodies || false, // Skip bodies for external stubs
+            lenientSemicolons: true // Use lenient parsing for SDK files to handle Bohemia's erroneous semicolon misses
         };
 
         const startTime = performance.now();
