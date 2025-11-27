@@ -437,8 +437,34 @@ export class TypeResolver implements ITypeResolver {
             Logger.debug(`🔍 TypeResolver: Searching for "${objectName}" in ${uri}, globalOnly: ${globalOnly}`);
         }
 
+        // When we have position context, prioritize local scopes over global variables
+        // This ensures that shadowed variables resolve to their local definition
+        if (!globalOnly && position) {
+            for (const node of ast.body) {
+                // Check inside class members and methods (only if position is in this class)
+                if (isClass(node) && isPositionInNode(position, node)) {
+                    const classType = this.searchInClass(objectName, node, position, doc);
+                    if (classType) {
+                        // Cache and return the result
+                        this.typeCache.set(searchCacheKey, classType);
+                        return classType;
+                    }
+                }
+
+                // Check inside function bodies (only if position is in this function)
+                if (isFunction(node) && isPositionInNode(position, node)) {
+                    const funcType = this.searchInFunction(objectName, node, position, doc);
+                    if (funcType) {
+                        // Cache and return the result
+                        this.typeCache.set(searchCacheKey, funcType);
+                        return funcType;
+                    }
+                }
+            }
+        }
+
+        // Then check for global variable declarations
         for (const node of ast.body) {
-            // Check for global variable declarations
             if (isVarDecl(node) && node.name === objectName) {
                 if (this.enableDetailedLogging) {
                     Logger.debug(`🎯 TypeResolver: Found global variable "${objectName}"`);
@@ -448,28 +474,29 @@ export class TypeResolver implements ITypeResolver {
                 this.typeCache.set(searchCacheKey, varType);
                 return varType;
             }
+        }
 
-            if (globalOnly && !position) {
-                continue; // Skip local scopes if searching globally without position context
-            }
-
-            // Check inside class members and methods
-            if (isClass(node)) {
-                const classType = this.searchInClass(objectName, node, position, doc);
-                if (classType) {
-                    // Cache and return the result
-                    this.typeCache.set(searchCacheKey, classType);
-                    return classType;
+        // For globalOnly mode (cross-file searches), also check inside classes and functions
+        if (globalOnly) {
+            for (const node of ast.body) {
+                // Check inside class members and methods
+                if (isClass(node)) {
+                    const classType = this.searchInClass(objectName, node, position, doc);
+                    if (classType) {
+                        // Cache and return the result
+                        this.typeCache.set(searchCacheKey, classType);
+                        return classType;
+                    }
                 }
-            }
 
-            // Check inside function bodies
-            if (isFunction(node)) {
-                const funcType = this.searchInFunction(objectName, node, position, doc);
-                if (funcType) {
-                    // Cache and return the result
-                    this.typeCache.set(searchCacheKey, funcType);
-                    return funcType;
+                // Check inside function bodies
+                if (isFunction(node)) {
+                    const funcType = this.searchInFunction(objectName, node, position, doc);
+                    if (funcType) {
+                        // Cache and return the result
+                        this.typeCache.set(searchCacheKey, funcType);
+                        return funcType;
+                    }
                 }
             }
         }
@@ -492,32 +519,37 @@ export class TypeResolver implements ITypeResolver {
             Logger.debug(`🔍 TypeResolver: Checking class "${classNode.name}" for "${objectName}"`);
         }
 
-        // Check class members
+        // When we have a position, first check if we're inside a method
+        // Method locals/parameters should shadow class members
+        if (position) {
+            for (const member of classNode.members || []) {
+                if (isMethod(member)) {
+                    const method = member as MethodDeclNode;
+                    const isInMethod = isPositionInNode(position, method);
+                    if (this.enableDetailedLogging) {
+                        Logger.debug(`🔍 TypeResolver: Checking method "${method.name}" for position ${position.line}:${position.character}`);
+                        Logger.debug(`   Method bounds: ${method.start.line}:${method.start.character} - ${method.end.line}:${method.end.character}`);
+                        Logger.debug(`   Position in method: ${isInMethod}`);
+                    }
+                    if (isInMethod) {
+                        const methodType = this.searchInFunction(objectName, method, position, doc);
+                        if (methodType) {
+                            return methodType;
+                        }
+                    } else if (this.enableDetailedLogging) {
+                        Logger.debug(`   ❌ Position ${position.line}:${position.character} not in method bounds`);
+                    }
+                }
+            }
+        }
+
+        // Then check class members
         for (const member of classNode.members || []) {
             if (isVarDecl(member) && member.name === objectName) {
                 if (this.enableDetailedLogging) {
                     Logger.debug(`🎯 TypeResolver: Found class member "${objectName}"`);
                 }
                 return this.resolveVariableType(member, doc);
-            }
-
-            // Check method parameters and local variables
-            if (isMethod(member) && position) {
-                const method = member as MethodDeclNode;
-                const isInMethod = isPositionInNode(position, method);
-                if (this.enableDetailedLogging) {
-                    Logger.debug(`🔍 TypeResolver: Checking method "${method.name}" for position ${position.line}:${position.character}`);
-                    Logger.debug(`   Method bounds: ${method.start.line}:${method.start.character} - ${method.end.line}:${method.end.character}`);
-                    Logger.debug(`   Position in method: ${isInMethod}`);
-                }
-                if (isInMethod) {
-                    const methodType = this.searchInFunction(objectName, method, position, doc);
-                    if (methodType) {
-                        return methodType;
-                    }
-                } else if (this.enableDetailedLogging) {
-                    Logger.debug(`   ❌ Position ${position.line}:${position.character} not in method bounds`);
-                }
             }
         }
 
@@ -533,17 +565,8 @@ export class TypeResolver implements ITypeResolver {
         position?: Position,
         doc?: TextDocument
     ): string | null {
-        // Check parameters
-        for (const param of funcNode.parameters || []) {
-            if (param.name === objectName) {
-                if (this.enableDetailedLogging) {
-                    Logger.debug(`🎯 TypeResolver: Found parameter "${objectName}"`);
-                }
-                return this.resolveParameterType(param, doc);
-            }
-        }
-
         // FIRST: Check funcNode.locals if it exists (populated by parser)
+        // Local variables shadow parameters
         if (funcNode.locals) {
             for (const local of funcNode.locals) {
                 if (isVarDecl(local) && local.name === objectName) {
@@ -571,6 +594,16 @@ export class TypeResolver implements ITypeResolver {
             if (localVar) {
                 Logger.debug(`🎯 TypeResolver: Found local variable "${objectName}" in function body`);
                 return this.resolveVariableType(localVar, doc);
+            }
+        }
+
+        // THIRD: Check parameters (after locals since locals can shadow parameters)
+        for (const param of funcNode.parameters || []) {
+            if (param.name === objectName) {
+                if (this.enableDetailedLogging) {
+                    Logger.debug(`🎯 TypeResolver: Found parameter "${objectName}"`);
+                }
+                return this.resolveParameterType(param, doc);
             }
         }
 
