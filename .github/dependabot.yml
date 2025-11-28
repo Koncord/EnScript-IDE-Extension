@@ -16,6 +16,7 @@ updates:
     commit-message:
       prefix: "chore"
       include: "scope"
+    target-branch: "develop"
 
   # Enable version updates for GitHub Actions
   - package-ecosystem: "github-actions"
