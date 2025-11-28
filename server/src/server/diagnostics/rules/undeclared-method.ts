@@ -55,7 +55,8 @@ export class UndeclaredMethodRule extends UndeclaredEntityRule {
             return [];
         }
 
-        let { typeName: objectType, isStaticAccess, isSuperAccess } = resolutionResult;
+        let objectType = resolutionResult.typeName;
+        const { isStaticAccess, isSuperAccess } = resolutionResult;
 
         // Resolve typedef to underlying type (e.g., "PlayerList" -> "array<Player>")
         if (context.typeResolver) {

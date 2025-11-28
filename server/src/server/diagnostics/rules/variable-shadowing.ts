@@ -26,7 +26,7 @@ export class VariableShadowingRule extends UndeclaredEntityRule {
     async check(
         node: ASTNode,
         context: DiagnosticRuleContext,
-        config: DiagnosticRuleConfig
+        _config: DiagnosticRuleConfig
     ): Promise<DiagnosticRuleResult[]> {
         if (!isFunction(node) && !isMethod(node)) {
             return [];
