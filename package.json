@@ -40,7 +40,7 @@
         "vscode-uri": "^3.1.0"
     },
     "devDependencies": {
-        "@eslint/js": "^9.38.0",
+        "@eslint/js": "^9.39.1",
         "@types/jest": "^30.0.0",
         "@types/node": "^24.8.1",
         "@types/vscode": "^1.105.0",
