@@ -93,6 +93,15 @@ const int ScrollWidgetTypeID = 26;
 
 const int MB_PRESSED_MASK = 1;
 
+ScriptModule g_Script;
+
+const int CT_INT = 1;
+const int CT_FLOAT = 2;
+const int CT_STRING = 3;
+const int CT_ARRAY = 4;
+const int CT_CLASS = 5;
+const int CT_OTHER = 6;
+
 `;
 
 /**
