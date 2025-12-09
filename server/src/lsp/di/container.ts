@@ -14,6 +14,7 @@ import { HoverHandler } from '../handlers/hover';
 import { ReferencesHandler } from '../handlers/references';
 import { RenameHandler } from '../handlers/rename';
 import { WorkspaceSymbolHandler } from '../handlers/workspaceSymbol';
+import { DocumentSymbolHandler } from '../handlers/documentSymbol';
 import { DiagnosticsHandler } from '../handlers/diagnostics';
 import { DumpDiagnosticsHandler } from '../handlers/dumpDiagnostics';
 import { DumpClassesHandler } from '../handlers/dumpClasses';
@@ -41,6 +42,7 @@ export function configureServerContainer(
     container.bind<IHandlerRegistration>(HANDLER_TYPES.IHandlerRegistration).to(ReferencesHandler).inTransientScope();
     container.bind<IHandlerRegistration>(HANDLER_TYPES.IHandlerRegistration).to(RenameHandler).inTransientScope();
     container.bind<IHandlerRegistration>(HANDLER_TYPES.IHandlerRegistration).to(WorkspaceSymbolHandler).inTransientScope();
+    container.bind<IHandlerRegistration>(HANDLER_TYPES.IHandlerRegistration).to(DocumentSymbolHandler).inTransientScope();
     container.bind<IHandlerRegistration>(HANDLER_TYPES.IHandlerRegistration).to(DiagnosticsHandler).inTransientScope();
     container.bind<IHandlerRegistration>(HANDLER_TYPES.IHandlerRegistration).to(DumpDiagnosticsHandler).inTransientScope();
     container.bind<IHandlerRegistration>(HANDLER_TYPES.IHandlerRegistration).to(DumpClassesHandler).inTransientScope();

@@ -77,6 +77,7 @@ export class EnscriptLanguageServer {
                         referencesProvider: true,
                         renameProvider: true,
                         workspaceSymbolProvider: true,
+                        documentSymbolProvider: true,
                         codeActionProvider: true
                     }
                 };
