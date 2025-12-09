@@ -24,20 +24,15 @@ export class VariableShadowingRule extends UndeclaredEntityRule {
     }
 
     async check(
-        node: ASTNode,
+        node: FunctionDeclNode | MethodDeclNode,
         context: DiagnosticRuleContext,
         _config: DiagnosticRuleConfig
     ): Promise<DiagnosticRuleResult[]> {
-        if (!isFunction(node) && !isMethod(node)) {
-            return [];
-        }
-
         // Skip checking proto/native methods
         if (node.modifiers?.includes('proto') || node.modifiers?.includes('native') || !node.body) {
             return [];
         }
 
-        const functionNode = node as FunctionDeclNode | MethodDeclNode;
         const results: DiagnosticRuleResult[] = [];
 
         // Get global variables from current file
@@ -49,14 +44,14 @@ export class VariableShadowingRule extends UndeclaredEntityRule {
 
         // Get function/method parameters
         const parameters = new Set<string>();
-        for (const param of functionNode.parameters || []) {
+        for (const param of node.parameters || []) {
             parameters.add(param.name);
         }
 
         // Check all local variables in the function/method
         const visitor = new LocalVariableVisitor(globalVars, classMembers, parameters, containingClass?.name || null);
-        if (functionNode.body) {
-            visitor.visit(functionNode.body);
+        if (node.body) {
+            visitor.visit(node.body);
         }
 
         // Create diagnostics for shadowed variables
