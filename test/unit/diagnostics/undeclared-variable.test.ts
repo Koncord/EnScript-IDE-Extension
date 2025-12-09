@@ -117,4 +117,72 @@ modded class TestClass {
             expectNoDiagnosticWithMessage(results, 'Func2');
         });
     });
+
+    describe('Modded Class Members', () => {
+        it('should find member from modded base class', async () => {
+            const code = `
+class TestBase {
+}
+
+modded class TestBase {
+    int value;
+}
+
+class TestClass extends TestBase {
+    void Method() {
+        value = 1;
+    }
+}`;
+
+            const results = await runDiagnosticRule(rule, code, testContext);
+
+            // Should not flag value as undeclared
+            expectNoDiagnosticWithMessage(results, 'value');
+        });
+
+        it('should find member from modded grandparent class', async () => {
+            const code = `
+class GrandParent {
+}
+
+modded class GrandParent {
+    int sharedValue;
+}
+
+class Parent extends GrandParent {
+}
+
+class Child extends Parent {
+    void Method() {
+        sharedValue = 42;
+    }
+}`;
+
+            const results = await runDiagnosticRule(rule, code, testContext);
+
+            // Should not flag sharedValue as undeclared
+            expectNoDiagnosticWithMessage(results, 'sharedValue');
+        });
+
+        it('should detect truly undeclared variable even with modded classes', async () => {
+            const code = `
+class TestBase {
+}
+
+modded class TestBase {
+    int value;
+}
+
+class TestClass extends TestBase {
+    void Method() {
+        unknownVar = 1;
+    }
+}`;
+
+            const results = await runDiagnosticRule(rule, code, testContext);
+
+            // Should flag unknownVar as undeclared
+            expectDiagnosticWithMessage(results, 'unknownVar');
+        });
+    });
 });

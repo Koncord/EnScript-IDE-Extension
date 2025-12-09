@@ -141,13 +141,8 @@ export class UndeclaredVariableRule extends UndeclaredEntityRule {
         }
 
         const findClassFn = (className: string): ClassDeclNode | null => {
-            const currentAst = context.ast;
-            for (const astNode of currentAst.body) {
-                if (isClass(astNode) && astNode.name === className) {
-                    return astNode;
-                }
-            }
-
+            // Always use typeResolver to get ALL definitions (including modded classes)
+            // and merge them to ensure we have complete member lists
             if (context.typeResolver) {
                 const classDefs = context.typeResolver.findAllClassDefinitions(className);
                 if (classDefs.length > 0) {
@@ -155,11 +150,32 @@ export class UndeclaredVariableRule extends UndeclaredEntityRule {
                 }
             }
 
+            // Fallback to current AST if type resolver doesn't find anything
+            const currentAst = context.ast;
+            for (const astNode of currentAst.body) {
+                if (isClass(astNode) && astNode.name === className) {
+                    return astNode;
+                }
+            }
+
             return null;
         };
 
+        // IMPORTANT: Merge the containing class first to include all modded definitions
+        // before searching the inheritance chain
+        let mergedContainingClass = containingClass;
+        if (context.typeResolver) {
+            const allDefs = context.typeResolver.findAllClassDefinitions(containingClass.name);
+            if (allDefs.length > 1) {
+                const merged = mergeClassDefinitions(allDefs);
+                if (merged) {
+                    mergedContainingClass = merged;
+                }
+            }
+        }
+
         const member = findMemberInClassWithInheritance(
-            containingClass,
+            mergedContainingClass,
             name,
             findClassFn,
             false

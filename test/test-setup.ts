@@ -22,7 +22,7 @@ const sdkBaseContent = readFileSync(sdkBasePath, 'utf-8');
 // Global test setup
 beforeAll(() => {
   // Setup code that runs before all test suites
-  console.log('Test setup: SDK base file loaded from fixtures');
+  //console.log('Test setup: SDK base file loaded from fixtures');
 });
 
 // Global test teardown
