@@ -396,6 +396,9 @@ export class Parser {
      * Now uses specific keyword types for better detection
      */
     private parseDeclaration(): Declaration[] {
+        // Capture the start position BEFORE parsing annotations/modifiers
+        const declStartPos = this.document.positionAt(this.tokenStream.peek().start);
+        
         // Parse in strict order: annotations first, then modifiers
         const annotations = this.parseAnnotations();
         const modifiers = this.parseModifiers();
@@ -405,11 +408,11 @@ export class Parser {
         if (token.kind === TokenKind.KeywordDeclaration) {
             switch (token.value) {
                 case 'class':
-                    return [this.parseClassDeclaration(modifiers, annotations)];
+                    return [this.parseClassDeclaration(modifiers, annotations, declStartPos)];
                 case 'enum':
-                    return [this.parseEnumDeclaration(modifiers, annotations)];
+                    return [this.parseEnumDeclaration(modifiers, annotations, declStartPos)];
                 case 'typedef':
-                    return [this.parseTypedefDeclaration(modifiers, annotations)];
+                    return [this.parseTypedefDeclaration(modifiers, annotations, declStartPos)];
                 default:
                     // Shouldn't happen with our categorization, but provide helpful error
                     throw new Error(`Declaration keyword '${token.value}' is recognized but not yet implemented in parser. Supported declarations: 'class', 'enum', 'typedef'.`);
@@ -417,9 +420,9 @@ export class Parser {
         } else {
             // Check if it's a function or variable declaration
             if (this.looksLikeFunctionDeclaration()) {
-                return [this.parseFunctionDeclaration(modifiers, annotations)];
+                return [this.parseFunctionDeclaration(modifiers, annotations, declStartPos)];
             } else {
-                return this.parseVariableDeclarations(modifiers, annotations);
+                return this.parseVariableDeclarations(modifiers, annotations, declStartPos);
             }
         }
     }
@@ -427,9 +430,9 @@ export class Parser {
     /**
      * Parse class declaration
      */
-    private parseClassDeclaration(modifiers: string[], annotations: string[][]): ClassDeclNode {
+    private parseClassDeclaration(modifiers: string[], annotations: string[][], declStartPos: Position): ClassDeclNode {
         const startToken = this.expectToken('class');
-        const startPos = this.document.positionAt(startToken.start);
+        const startPos = declStartPos; // Use the position that includes modifiers
 
         const nameToken = this.expectIdentifier('class-name');
         const nameStart = this.document.positionAt(nameToken.start);
@@ -479,9 +482,9 @@ export class Parser {
     /**
      * Parse enum declaration
      */
-    private parseEnumDeclaration(modifiers: string[], annotations: string[][]): EnumDeclNode {
+    private parseEnumDeclaration(modifiers: string[], annotations: string[][], declStartPos: Position): EnumDeclNode {
         const startToken = this.expectToken('enum');
-        const startPos = this.document.positionAt(startToken.start);
+        const startPos = declStartPos; // Use the position that includes modifiers
 
         const nameToken = this.expectIdentifier('enum-name');
         const nameStart = this.document.positionAt(nameToken.start);
@@ -517,8 +520,8 @@ export class Parser {
     /**
      * Parse function declaration
      */
-    private parseFunctionDeclaration(modifiers: string[], annotations: string[][]): FunctionDeclNode {
-        const startPos = this.document.positionAt(this.tokenStream.peek().start);
+    private parseFunctionDeclaration(modifiers: string[], annotations: string[][], declStartPos: Position): FunctionDeclNode {
+        const startPos = declStartPos; // Use the position that includes modifiers
 
         // Parse return type
         const returnType = this.parseType();
@@ -541,7 +544,7 @@ export class Parser {
 
         // Parse optional function body
         let body: BlockStatement | undefined;
-        let endPos = this.document.positionAt(nameToken.end);
+        let endPos = nameEnd; // Initialize with nameEnd as fallback
 
         // Extract local variables from function body
         let locals: VarDeclNode[] = [];
@@ -561,11 +564,16 @@ export class Parser {
             }
         } else {
             // Function declaration without body (e.g., in header)
-            if (this.tokenStream.peek().value === ';') {
-                const semiToken = this.tokenStream.next();
+            const semiToken = this.tokenStream.peek();
+            if (semiToken.value === ';') {
+                this.tokenStream.next(); // consume ';'
                 endPos = this.document.positionAt(semiToken.end);
             } else {
-                this.expectSemicolon();
+                const semi = this.expectSemicolon();
+                if (semi) {
+                    endPos = this.document.positionAt(semi.end);
+                }
+                // If semi is null (lenient mode), endPos remains at nameEnd
             }
         }
 
@@ -591,25 +599,37 @@ export class Parser {
      * Parse multiple variable declarations (comma-separated) for top-level
      * Example: int a, b, c;
      */
-    private parseVariableDeclarations(modifiers: string[] = [], annotations: string[][] = []): VarDeclNode[] {
+    private parseVariableDeclarations(modifiers: string[] = [], annotations: string[][] = [], declStartPos: Position): VarDeclNode[] {
         const declarations: VarDeclNode[] = [];
 
         // Parse type
         const type = this.parseType();
 
-        // Parse first variable
+        // Parse first variable (use declStartPos for the first one)
         const firstNameToken = this.expectIdentifier();
-        declarations.push(this.createVariableDeclaration(modifiers, annotations, type, firstNameToken));
+        declarations.push(this.createVariableDeclaration(modifiers, annotations, type, firstNameToken, declStartPos));
 
         // Parse additional comma-separated variables
         while (this.tokenStream.peek().value === ',') {
             this.tokenStream.next(); // consume ','
 
             const nameToken = this.expectIdentifier();
-            declarations.push(this.createVariableDeclaration(modifiers, annotations, type, nameToken));
+            // For subsequent variables in the comma list, start from the type position
+            declarations.push(this.createVariableDeclaration(modifiers, annotations, type, nameToken, type.start));
         }
 
-        this.expectSemicolon();
+        // Capture semicolon position and update all declarations to include it
+        const semiToken = this.tokenStream.peek();
+        if (semiToken.value === ';') {
+            const semiEndPos = this.document.positionAt(semiToken.end);
+            this.expectSemicolon();
+            // Update all declarations to include the semicolon
+            for (const decl of declarations) {
+                decl.end = semiEndPos;
+            }
+        } else {
+            this.expectSemicolon();
+        }
 
         return declarations;
     }
@@ -618,7 +638,7 @@ export class Parser {
      * Create a variable or field declaration (unified method)
      * Handles array dimensions and initializers (assignment or constructor call)
      */
-    private createVariableDeclaration(modifiers: string[], annotations: string[][], type: TypeNode, nameToken: Token): VarDeclNode {
+    private createVariableDeclaration(modifiers: string[], annotations: string[][], type: TypeNode, nameToken: Token, declStartPos?: Position): VarDeclNode {
         const nameStart = this.document.positionAt(nameToken.start);
         const nameEnd = this.document.positionAt(nameToken.end);
 
@@ -694,7 +714,7 @@ export class Parser {
         return {
             kind: 'VarDecl',
             uri: this.document.uri,
-            start: finalType.start,
+            start: declStartPos || finalType.start, // Use declStartPos if provided (includes modifiers)
             end: endPos,
             name: nameToken.value,
             nameStart,
@@ -710,7 +730,8 @@ export class Parser {
      * Parse variable declaration - single variable for backward compatibility
      */
     parseVariableDeclaration(modifiers: string[] = [], annotations: string[][] = []): VarDeclNode {
-        const declarations = this.parseVariableDeclarations(modifiers, annotations);
+        const declStartPos = this.document.positionAt(this.tokenStream.peek().start);
+        const declarations = this.parseVariableDeclarations(modifiers, annotations, declStartPos);
         return declarations[0]; // Return first declaration for compatibility
     }
 
@@ -723,15 +744,16 @@ export class Parser {
 
         // Parse variable name  
         const nameToken = this.expectIdentifier();
-        return this.createVariableDeclaration(modifiers, annotations, type, nameToken);
+        // For this case, start from type position since we're already past any modifiers
+        return this.createVariableDeclaration(modifiers, annotations, type, nameToken, type.start);
     }
 
     /**
      * Parse typedef declaration
      */
-    private parseTypedefDeclaration(modifiers: string[], annotations: string[][]): TypedefDeclNode {
+    private parseTypedefDeclaration(modifiers: string[], annotations: string[][], declStartPos: Position): TypedefDeclNode {
         const startToken = this.expectToken('typedef');
-        const startPos = this.document.positionAt(startToken.start);
+        const startPos = declStartPos; // Use the position that includes modifiers
 
         // Parse the old type
         const type = this.parseType();
@@ -741,11 +763,19 @@ export class Parser {
         const nameStart = this.document.positionAt(nameToken.start);
         const nameEnd = this.document.positionAt(nameToken.end);
 
+        // Capture semicolon position if present
+        let endPos = nameEnd;
+        const semiToken = this.tokenStream.peek();
+        if (semiToken.value === ';') {
+            this.tokenStream.next(); // consume ';'
+            endPos = this.document.positionAt(semiToken.end);
+        }
+
         return {
             kind: 'TypedefDecl',
             uri: this.document.uri,
-            start: startPos,
-            end: nameEnd,
+            start: startPos, // Use the position that includes modifiers
+            end: endPos, // Include semicolon if present
             name: nameToken.value,
             nameStart,
             nameEnd,
@@ -1294,6 +1324,9 @@ export class Parser {
     }
 
     private parseClassMemberDeclaration(): Declaration[] {
+        // Capture the start position BEFORE parsing annotations/modifiers
+        const declStartPos = this.document.positionAt(this.tokenStream.peek().start);
+        
         // Parse in strict order: annotations first, then modifiers
         const annotations = this.parseAnnotations();
         const modifiers = this.parseModifiers();
@@ -1302,10 +1335,10 @@ export class Parser {
 
         // Check if this is a method (has parameters)
         if (this.tokenStream.peek().value === '(') {
-            return [this.parseMethodDeclaration(modifiers, annotations, type, nameToken)];
+            return [this.parseMethodDeclaration(modifiers, annotations, type, nameToken, declStartPos)];
         } else {
             // This is a field declaration - handle comma-separated variables
-            return this.parseFieldDeclarations(modifiers, annotations, type, nameToken);
+            return this.parseFieldDeclarations(modifiers, annotations, type, nameToken, declStartPos);
         }
     }
 
@@ -1396,7 +1429,7 @@ export class Parser {
      */
     private parseMethodBodyWithRecovery(methodType: string): { body: BlockStatement | undefined; endPos: Position } {
         let body: BlockStatement | undefined;
-        let endPos: Position;
+        let endPos: Position = this.document.positionAt(this.tokenStream.peek().start); // Initialize with current position as fallback
 
         if (this.tokenStream.peek().value === '{') {
             try {
@@ -1458,14 +1491,23 @@ export class Parser {
                 }
             }
         } else {
-            this.expectSemicolon();
-            endPos = this.document.positionAt(this.tokenStream.peek().start);
+            const semiToken = this.tokenStream.peek();
+            if (semiToken.value === ';') {
+                this.tokenStream.next();
+                endPos = this.document.positionAt(semiToken.end);
+            } else {
+                const semi = this.expectSemicolon();
+                if (semi) {
+                    endPos = this.document.positionAt(semi.end);
+                }
+                // If semi is null (lenient mode), endPos remains at the initialized fallback value
+            }
         }
 
         return { body, endPos };
     }
 
-    private parseConstructorDeclaration(modifiers: string[], annotations: string[][]): MethodDeclNode {
+    private parseConstructorDeclaration(modifiers: string[], annotations: string[][], declStartPos?: Position): MethodDeclNode {
         const nameToken = this.tokenStream.next(); // consume constructor name
         const nameStart = this.document.positionAt(nameToken.start);
         const nameEnd = this.document.positionAt(nameToken.end);
@@ -1476,7 +1518,7 @@ export class Parser {
         return {
             kind: 'MethodDecl',
             uri: this.document.uri,
-            start: nameStart,
+            start: declStartPos || nameStart, // Use declStartPos if provided
             end: endPos,
             name: nameToken.value,
             nameStart,
@@ -1496,7 +1538,8 @@ export class Parser {
         };
     }
 
-    private parseDestructorDeclaration(modifiers: string[], annotations: string[][]): MethodDeclNode {
+    private parseDestructorDeclaration(modifiers: string[], annotations: string[][], declStartPos?: Position): MethodDeclNode {
+        const tildeStart = this.document.positionAt(this.tokenStream.peek().start); // Position of ~
         this.expectToken('~'); // consume ~
         const nameToken = this.expectIdentifier();
         const nameStart = this.document.positionAt(nameToken.start);
@@ -1508,7 +1551,7 @@ export class Parser {
         return {
             kind: 'MethodDecl',
             uri: this.document.uri,
-            start: nameStart,
+            start: declStartPos || tildeStart, // Use declStartPos if provided, otherwise tilde position
             end: endPos,
             name: `~${nameToken.value}`,
             nameStart,
@@ -1528,7 +1571,7 @@ export class Parser {
         };
     }
 
-    private parseMethodDeclaration(modifiers: string[], annotations: string[][], returnType: TypeNode, nameToken: Token): MethodDeclNode {
+    private parseMethodDeclaration(modifiers: string[], annotations: string[][], returnType: TypeNode, nameToken: Token, declStartPos?: Position): MethodDeclNode {
         const nameStart = this.document.positionAt(nameToken.start);
         const nameEnd = this.document.positionAt(nameToken.end);
         this.expectToken('('); // Expect opening parenthesis
@@ -1538,7 +1581,7 @@ export class Parser {
         // Extract local variables from method body
         let locals: VarDeclNode[] = [];
         let body: BlockStatement | undefined;
-        let endPos: Position;
+        let endPos: Position = nameEnd; // Initialize with nameEnd as fallback
         const nextToken = this.tokenStream.peek();
         if (nextToken.value === '{') {
             // Save the position of the opening brace for recovery
@@ -1653,8 +1696,17 @@ export class Parser {
                 // Just use the current position (end of method body) - this is correct
             }
         } else {
-            this.expectSemicolon();
-            endPos = this.document.positionAt(this.tokenStream.peek().start);
+            const semiToken = this.tokenStream.peek();
+            if (semiToken.value === ';') {
+                this.tokenStream.next();
+                endPos = this.document.positionAt(semiToken.end);
+            } else {
+                const semi = this.expectSemicolon();
+                if (semi) {
+                    endPos = this.document.positionAt(semi.end);
+                }
+                // If semi is null (lenient mode), endPos remains at nameEnd
+            }
         }
 
         // Check if this is a constructor or destructor based on the method name
@@ -1690,7 +1742,7 @@ export class Parser {
         return {
             kind: 'MethodDecl',
             uri: this.document.uri,
-            start: returnType.start,
+            start: declStartPos || returnType.start, // Use declStartPos if provided (includes modifiers)
             end: endPos,
             name: nameToken.value,
             nameStart,
@@ -1710,22 +1762,34 @@ export class Parser {
      * Parse multiple field declarations (comma-separated)
      * Example: protected float m_PosX, m_PosY;
      */
-    private parseFieldDeclarations(modifiers: string[], annotations: string[][], type: TypeNode, firstNameToken: Token): VarDeclNode[] {
+    private parseFieldDeclarations(modifiers: string[], annotations: string[][], type: TypeNode, firstNameToken: Token, declStartPos?: Position): VarDeclNode[] {
         const declarations: VarDeclNode[] = [];
 
-        // Parse the first variable
-        declarations.push(this.createFieldDeclaration(modifiers, annotations, type, firstNameToken));
+        // Parse the first variable (use declStartPos for the first one)
+        declarations.push(this.createFieldDeclaration(modifiers, annotations, type, firstNameToken, declStartPos));
 
         // Parse additional comma-separated variables
         while (this.tokenStream.peek().value === ',') {
             this.tokenStream.next(); // consume ','
 
             const nameToken = this.expectIdentifier();
-            declarations.push(this.createFieldDeclaration(modifiers, annotations, type, nameToken));
+            // For subsequent fields in the comma list, start from the type position
+            declarations.push(this.createFieldDeclaration(modifiers, annotations, type, nameToken, type.start));
         }
 
-        // Enhanced semicolon handling with better error recovery
-        this.expectSemicolonWithRecovery();
+        // Capture semicolon position and update all declarations to include it
+        const semiToken = this.tokenStream.peek();
+        if (semiToken.value === ';') {
+            const semiEndPos = this.document.positionAt(semiToken.end);
+            this.expectSemicolonWithRecovery();
+            // Update all declarations to include the semicolon
+            for (const decl of declarations) {
+                decl.end = semiEndPos;
+            }
+        } else {
+            // Enhanced semicolon handling with better error recovery
+            this.expectSemicolonWithRecovery();
+        }
 
         return declarations;
     }
@@ -1733,8 +1797,8 @@ export class Parser {
     /**
      * Create a field declaration (delegates to createVariableDeclaration)
      */
-    private createFieldDeclaration(modifiers: string[], annotations: string[][], type: TypeNode, nameToken: Token): VarDeclNode {
-        return this.createVariableDeclaration(modifiers, annotations, type, nameToken);
+    private createFieldDeclaration(modifiers: string[], annotations: string[][], type: TypeNode, nameToken: Token, declStartPos?: Position): VarDeclNode {
+        return this.createVariableDeclaration(modifiers, annotations, type, nameToken, declStartPos);
     }
 
     private extractMembersFromBody(body: BlockStatement): Declaration[] {
