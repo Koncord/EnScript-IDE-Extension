@@ -60,6 +60,7 @@ export class Parser {
     private preprocessorStack: PreprocessorCondition[] = [];
     private definedSymbols = new Set<string>();
     private parseErrors: ParseError[] = [];
+    private currentClassName: string | null = null; // Track the class being parsed for constructor/destructor detection
 
     // Sub-parsers
     private expressionParser: ExpressionParser;
@@ -447,9 +448,16 @@ export class Parser {
             baseClass = this.parseType();
         }
 
+        // Set current class name for constructor/destructor detection
+        const previousClassName = this.currentClassName;
+        this.currentClassName = nameToken.value;
+
         // Parse class body
         const body = this.parseClassBody();
         const members = this.extractMembersFromBody(body);
+
+        // Restore previous class name (for nested classes)
+        this.currentClassName = previousClassName;
 
         return {
             kind: 'ClassDecl',
@@ -1286,31 +1294,12 @@ export class Parser {
     }
 
     private parseClassMemberDeclaration(): Declaration[] {
-
-        
         // Parse in strict order: annotations first, then modifiers
         const annotations = this.parseAnnotations();
         const modifiers = this.parseModifiers();
-        const token = this.tokenStream.peek();
-        
-
-        
-        // Check for constructor
-        if (token.kind === TokenKind.Identifier && token.value === this.getCurrentClassName()) {
-            return [this.parseConstructorDeclaration(modifiers, annotations)];
-        }
-
-        // Check for destructor
-        if (token.value === '~') {
-            return [this.parseDestructorDeclaration(modifiers, annotations)];
-        }
-
-        // Parse type (could be return type for method or field type)
         const type = this.parseType();
         const nameToken = this.expectIdentifier();
-        
 
-        
         // Check if this is a method (has parameters)
         if (this.tokenStream.peek().value === '(') {
             return [this.parseMethodDeclaration(modifiers, annotations, type, nameToken)];
@@ -1398,9 +1387,7 @@ export class Parser {
 
 
     private getCurrentClassName(): string | null {
-        // This would need to track the current class context
-        // For now, return null to disable constructor detection
-        return null;
+        return this.currentClassName;
     }
 
     /**
@@ -1504,7 +1491,8 @@ export class Parser {
                 name: 'void'
             },
             parameters,
-            body
+            body,
+            isConstructor: true
         };
     }
 
@@ -1535,7 +1523,8 @@ export class Parser {
                 name: 'void'
             },
             parameters,
-            body
+            body,
+            isDestructor: true
         };
     }
 
@@ -1668,6 +1657,36 @@ export class Parser {
             endPos = this.document.positionAt(this.tokenStream.peek().start);
         }
 
+        // Check if this is a constructor or destructor based on the method name
+        const isConstructor = nameToken.value === this.getCurrentClassName();
+        const isDestructor = nameToken.value.startsWith('~');
+
+        // destructor cannot have parameters
+        if (isDestructor) {
+            if (parameters.length > 0) {
+                const error = new ParseError(
+                    this.document.uri,
+                    nameStart.line + 1,
+                    nameStart.character + 1,
+                    `Destructor '${nameToken.value}' cannot have parameters`
+                );
+                this.parseErrors.push(error);
+            }
+        }
+
+        if ((isConstructor || isDestructor)) {
+                // returnType node kind must be TypeReference with name 'void'
+                if (returnType.kind !== 'TypeReference' || returnType.name !== 'void') {
+                const error = new ParseError(
+                    this.document.uri,
+                    nameStart.line + 1,
+                    nameStart.character + 1,
+                    `${isConstructor ? 'Constructor' : 'Destructor'} '${nameToken.value}' must have return type 'void'`
+                );
+                this.parseErrors.push(error);
+            }
+        }
+
         return {
             kind: 'MethodDecl',
             uri: this.document.uri,
@@ -1681,7 +1700,9 @@ export class Parser {
             returnType,
             parameters,
             body,
-            locals
+            locals,
+            isConstructor,
+            isDestructor
         };
     }
 
