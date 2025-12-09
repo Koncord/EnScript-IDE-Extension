@@ -10,6 +10,7 @@ export { StaticInstanceMismatchRule } from './static-instance-mismatch';
 export { TypeMismatchRule } from './type-mismatch';
 export { IncorrectRefUsageRule } from './incorrect-ref-usage';
 export { VariableShadowingRule } from './variable-shadowing';
+export { MissingOverrideRule } from './missing-override';
 
 import { DiagnosticRule } from '../rules';
 import { UnusedTypedefRule } from './unused-typedef';
@@ -23,6 +24,7 @@ import { StaticInstanceMismatchRule } from './static-instance-mismatch';
 import { TypeMismatchRule } from './type-mismatch';
 import { IncorrectRefUsageRule } from './incorrect-ref-usage';
 import { VariableShadowingRule } from './variable-shadowing';
+import { MissingOverrideRule } from './missing-override';
 import { DiagnosticRuleRegistry } from '../registry';
 
 /**
@@ -40,7 +42,8 @@ export function getBuiltInRules(): DiagnosticRule[] {
         new StaticInstanceMismatchRule(),
         new TypeMismatchRule(),
         new IncorrectRefUsageRule(),
-        new VariableShadowingRule()
+        new VariableShadowingRule(),
+        new MissingOverrideRule()
     ];
 }
 
@@ -99,6 +102,10 @@ export function registerBuiltInRules(registry: DiagnosticRuleRegistry): void {
     });
 
     registry.register(new VariableShadowingRule(), {
+        priority: 85 // Warning rule, run after critical checks
+    });
+
+    registry.register(new MissingOverrideRule(), {
         priority: 85 // Warning rule, run after critical checks
     });
 }
