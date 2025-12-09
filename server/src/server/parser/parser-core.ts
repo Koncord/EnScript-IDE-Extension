@@ -1095,7 +1095,7 @@ export class Parser {
 
         this.expectToken('<');
 
-        while (this.tokenStream.peek().value !== '>') {
+        while (this.tokenStream.peek().value !== '>' && this.tokenStream.peek().value !== '>>') {
             try {
                 // Handle modifiers in type arguments (like "ref string")
                 args.push(this.parseTypeInGeneric());
@@ -1110,7 +1110,8 @@ export class Parser {
                 // Skip to next comma or closing bracket
                 while (!this.tokenStream.eof() &&
                     this.tokenStream.peek().value !== ',' &&
-                    this.tokenStream.peek().value !== '>') {
+                    this.tokenStream.peek().value !== '>' &&
+                    this.tokenStream.peek().value !== '>>') {
                     this.tokenStream.next();
                 }
 
@@ -1131,7 +1132,61 @@ export class Parser {
             }
         }
 
-        this.expectToken('>');
+        // Handle >> token (right-shift operator) when closing nested generics
+        // This happens with valid code like: array<ref Param3<string, string, int>>
+        // The >> should be split into two > tokens to close both generic levels
+        if (this.tokenStream.peek().value === '>>') {
+            const shiftToken = this.tokenStream.peek();
+            
+            // Split >> into two > tokens (this is valid syntax, not an error)
+            this.tokenStream.next(); // consume >>
+            
+            // Create a synthetic > token and insert it back for the outer generic
+            const syntheticToken: Token = {
+                kind: TokenKind.Operator,
+                value: '>',
+                start: shiftToken.start + 1, // second character of >>
+                end: shiftToken.end
+            };
+            this.tokenStream.insertToken(syntheticToken);
+        } else if (this.tokenStream.peek().value !== '>') {
+            // Missing '>' - try to recover based on context
+            const nextToken = this.tokenStream.peek();
+            
+            // Check if next token suggests we should close generics and continue
+            // Common patterns: Type<T identifier, Type<T>, Type<T;, Type<T[
+            const shouldRecover = 
+                nextToken.kind === TokenKind.Identifier ||  // array<int myVar
+                nextToken.value === ')' ||                    // func(array<int)
+                nextToken.value === ';' ||                    // array<int;
+                nextToken.value === ',' ||                    // func(array<int, ...)
+                nextToken.value === '[' ||                    // array<int[5]
+                nextToken.value === '=' ||                    // array<int = value
+                nextToken.kind === TokenKind.EOF;            // end of file
+            
+            if (shouldRecover && this.config.errorRecovery) {
+                // Report the missing '>' error
+                const error = new ParseError(
+                    this.document.uri,
+                    this.document.positionAt(nextToken.start).line + 1,
+                    this.document.positionAt(nextToken.start).character + 1,
+                    `Missing '>' to close generic type arguments before '${nextToken.value}'`
+                );
+                if (!this.shouldSuppressError(error)) {
+                    this.parseErrors.push(error);
+                }
+                
+                // Don't consume the next token, just return - caller will handle it
+                return args;
+            } else {
+                // Can't recover, throw the error
+                this.expectToken('>');
+            }
+        } else {
+            // Normal case: found '>'
+            this.expectToken('>');
+        }
+        
         return args;
     }
 

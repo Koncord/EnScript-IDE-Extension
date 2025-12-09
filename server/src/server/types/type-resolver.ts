@@ -38,7 +38,8 @@ import {
     isMemberExpression,
     isBlockStatement,
     isDeclaration,
-    isAutoType
+    isAutoType,
+    isForEachStatement
 } from '../util/ast-class-utils';
 import { parseGenericType } from '../util/type-utils';
 import { isMethod, isFunction, isClass, findMemberInClassWithInheritance } from '../util/ast-class-utils';
@@ -727,6 +728,35 @@ export class TypeResolver implements ITypeResolver {
                         if (isBeforeOrAt) {
                             return decl;
                         }
+                    }
+                }
+            }
+
+            // Check foreach statement variables
+            if (isForEachStatement(stmt)) {
+                // Check if the variable is one of the foreach loop variables
+                for (const loopVar of stmt.variables) {
+                    if (loopVar.name === varName) {
+                        // Check if position is after or at the foreach declaration
+                        if (!position) {
+                            return loopVar;
+                        }
+
+                        const declEndPos = loopVar.nameEnd || loopVar.end;
+                        const isBeforeOrAt = declEndPos.line < position.line ||
+                            (declEndPos.line === position.line && declEndPos.character <= position.character);
+
+                        if (isBeforeOrAt) {
+                            return loopVar;
+                        }
+                    }
+                }
+
+                // Recursively search the foreach body
+                if (isBlockStatement(stmt.body)) {
+                    const nested = this.findLocalVariable(varName, stmt.body, position);
+                    if (nested) {
+                        return nested;
                     }
                 }
             }

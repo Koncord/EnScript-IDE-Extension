@@ -10,6 +10,7 @@ import { ExpressionParser } from './expression-parser';
 import { ParserConfig } from '../ast/config';
 import { StatementRecoveryStrategy } from '../recovery/statement-recovery';
 import { RecoveryAction } from '../recovery/recovery-actions';
+import { ParseError } from '../ast/errors';
 import {
     Statement,
     Expression,
@@ -782,8 +783,13 @@ export class StatementParser {
             try {
                 const stmt = this.parseStatement();
                 statements.push(stmt);
-            } catch {
-                // Error recovery: skip to next semicolon or brace
+            } catch (error) {
+                // Re-throw ParseError so it can be caught by the main Parser and added to parseErrors
+                if (error instanceof ParseError) {
+                    throw error;
+                }
+                
+                // For other errors, do error recovery: skip to next semicolon or brace
                 this.skipToRecoveryPoint();
             }
         }
@@ -850,6 +856,21 @@ export class StatementParser {
                    this.tokenStream.peek().value !== ':') {
                 this.tokenStream.next();
             }
+        }
+
+        // Skip any stray > tokens (e.g., from typos like "Type>> variable")
+        // This only happens with malformed code, not with valid nested generics
+        while (this.tokenStream.peek().value === '>') {
+            const strayToken = this.tokenStream.peek();
+            const pos = this.document.positionAt(strayToken.start);
+            if (this.reportError) {
+                this.reportError(
+                    'Unexpected ">" token.',
+                    pos.line,
+                    pos.character
+                );
+            }
+            this.tokenStream.next(); // consume stray >
         }
 
         // Parse variable name
@@ -940,6 +961,12 @@ export class StatementParser {
                 this.skipGenericArguments();
             }
 
+            // Skip any stray > tokens (e.g., from >>> in malformed generics)
+            // This can happen with array<ref Param3<string, string, int>>>
+            while (this.tokenStream.peek().value === '>') {
+                this.tokenStream.next();
+            }
+
             // Skip array dimensions if present
             while (this.tokenStream.peek().value === '[') {
                 this.skipArrayDimension();
@@ -967,6 +994,8 @@ export class StatementParser {
 
     /**
      * Skip generic type arguments <T, U, V>
+     * 
+     * Handles missing '>' by detecting when we've likely left the generic context
      */
     private skipGenericArguments(): void {
         if (this.tokenStream.peek().value === '<') {
@@ -974,14 +1003,44 @@ export class StatementParser {
             let depth = 1;
 
             while (depth > 0 && !this.tokenStream.eof()) {
-                const token = this.tokenStream.next();
+                const token = this.tokenStream.peek();
+                
                 if (token.value === '<') {
+                    this.tokenStream.next();
                     depth++;
                 } else if (token.value === '>') {
+                    this.tokenStream.next();
                     depth--;
                 } else if (token.value === '>>') {
+                    this.tokenStream.next();
                     // Handle '>>' as two separate '>' tokens for nested generics
                     depth -= 2;
+                } else {
+                    // Check if this token suggests we've exited the generic arguments (missing '>')
+                    // This happens with: array<int myVar; or array<ref Param2<string, int myData;
+                    const isLikelyVariableName = token.kind === TokenKind.Identifier;
+
+                    if (depth >= 1 && isLikelyVariableName) {
+                        // Save position to peek ahead
+                        const saved = this.tokenStream.getPosition();
+                        this.tokenStream.next(); // consume potential variable name
+                        const afterName = this.tokenStream.peek();
+                        this.tokenStream.setPosition(saved); // restore
+
+                        // If pattern matches variable declaration, assume missing '>'(s)
+                        if (afterName.value === ';' || afterName.value === '=' || 
+                            afterName.value === ',' || afterName.value === ')' ||
+                            afterName.value === '[') {
+                            // This is likely the variable name, not a generic argument
+                            // Exit with depth > 0 to signal missing '>'
+                            // For nested generics like array<ref Param2<string, int myData
+                            // we're missing TWO '>' tokens but we'll exit and let recovery handle it
+                            break;
+                        }
+                    }
+
+                    // Normal token inside generics, consume it
+                    this.tokenStream.next();
                 }
             }
         }
@@ -1213,6 +1272,21 @@ export class StatementParser {
 
         // Parse type
         const type = this.parseTypeNode();
+
+        // Skip any stray > tokens (e.g., from malformed generic declarations like Type>>>)
+        // We'll report them via reportError callback if available, otherwise just skip silently
+        while (this.tokenStream.peek().value === '>') {
+            const strayToken = this.tokenStream.peek();
+            const pos = this.document.positionAt(strayToken.start);
+            if (this.reportError) {
+                this.reportError(
+                    'Unexpected ">" token in variable declaration.',
+                    pos.line,
+                    pos.character
+                );
+            }
+            this.tokenStream.next(); // consume stray >
+        }
 
         // Parse first variable
         const firstNameToken = this.expectIdentifier();
