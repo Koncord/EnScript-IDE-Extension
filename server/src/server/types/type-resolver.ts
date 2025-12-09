@@ -556,7 +556,32 @@ export class TypeResolver implements ITypeResolver {
         // If not found and this is a modded class, check merged definitions (slow path)
         // Only do this expensive operation when necessary
         if (classNode.modifiers?.includes('modded')) {
-            return this.searchInMergedClass(objectName, classNode.name, doc);
+            const mergedResult = this.searchInMergedClass(objectName, classNode.name, doc);
+            if (mergedResult) {
+                return mergedResult;
+            }
+        }
+
+        // If still not found, check parent class chain
+        if (classNode.baseClass) {
+            const baseClassName = extractTypeName(classNode.baseClass);
+            if (baseClassName) {
+                if (this.enableDetailedLogging) {
+                    Logger.debug(`🔍 TypeResolver: Checking parent class "${baseClassName}" for member "${objectName}"`);
+                }
+                
+                // Find all definitions of the base class and search in them
+                const baseClassDefs = this.findAllClassDefinitions(baseClassName);
+                for (const baseClassDef of baseClassDefs) {
+                    const result = this.searchInClass(objectName, baseClassDef, position, doc);
+                    if (result) {
+                        if (this.enableDetailedLogging) {
+                            Logger.debug(`🎯 TypeResolver: Found member "${objectName}" in parent class "${baseClassName}"`);
+                        }
+                        return result;
+                    }
+                }
+            }
         }
 
         return null;

@@ -83,4 +83,33 @@ describe('Type Resolution Cross-File Fix', () => {
         expect(workingType).toBe('CGame');
         expect(failingType).toBe('CGame'); // This was previously null due to the bug
     });
+
+    it('should resolve inherited class members correctly', () => {
+        const code = `
+class ActionBase {
+    string m_Text;
+}
+
+class ActionSingleUseBase extends ActionBase {
+}
+
+class ActionTest extends ActionSingleUseBase {
+    void ActionTest() {
+        m_Text = "Example";
+    }
+}`;
+
+        const doc = createDocument(code, 'test://action.c');
+        docCacheManager.ensureDocumentParsed(doc);
+        typeResolver.reindexDocumentSymbols(doc.uri);
+
+        // Position inside the constructor where m_Text is used
+        const position: Position = { line: 10, character: 8 };
+
+        // Resolve m_Text - should find it in the inheritance chain
+        const resolvedType = typeResolver.resolveObjectType('m_Text', doc, position);
+
+        // Should resolve to 'string' from ActionBase, not from some unrelated class
+        expect(resolvedType).toBe('string');
+    });
 });
