@@ -866,8 +866,8 @@ export class StatementParser {
             if (this.reportError) {
                 this.reportError(
                     'Unexpected ">" token.',
-                    pos.line,
-                    pos.character
+                    pos.line + 1,
+                    pos.character + 1
                 );
             }
             this.tokenStream.next(); // consume stray >
