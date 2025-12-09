@@ -82,6 +82,17 @@ export class UndeclaredVariableRule extends UndeclaredEntityRule {
                 const varNode = node as VarDeclNode;
                 variables.add(varNode.name);
             }
+            // Add global functions (can be used as function pointers in EnScript)
+            if (isFunction(node)) {
+                const funcNode = node as FunctionDeclNode;
+                variables.add(funcNode.name);
+            }
+        }
+
+        // Add global functions from other files (via type resolver)
+        if (context.typeResolver) {
+            // Note: We can't enumerate all global functions efficiently, so we'll check them
+            // later in the visitIdentifier method via findAllGlobalFunctionDefinitions
         }
 
         // Add class member variables if this is a method
@@ -411,6 +422,12 @@ class IdentifierFilterVisitor extends BaseASTVisitor<void> {
         if (this.context.typeResolver) {
             const globalVars = this.context.typeResolver.findAllGlobalVariableDefinitions(node.name);
             if (globalVars && globalVars.length > 0) {
+                return;
+            }
+
+            // Check global functions (can be used as function pointers in EnScript)
+            const globalFuncs = this.context.typeResolver.findAllGlobalFunctionDefinitions(node.name);
+            if (globalFuncs && globalFuncs.length > 0) {
                 return;
             }
         }
