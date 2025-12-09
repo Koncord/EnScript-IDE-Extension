@@ -37,9 +37,9 @@ function declarationKindToSymbolKind(kind: string): SymbolKind {
 /**
  * Get detail string for a declaration
  * @param decl The declaration node
- * @param parentClassName Optional parent class name for constructor detection (kept for backwards compatibility but no longer needed)
+ * @param _parentClassName Optional parent class name for constructor detection (kept for backwards compatibility but no longer needed)
  */
-function getDeclarationDetail(decl: Declaration, parentClassName?: string): string {
+function getDeclarationDetail(decl: Declaration, _parentClassName?: string): string {
     if (isMethod(decl)) {
         const methodDecl = decl as MethodDeclNode;
 

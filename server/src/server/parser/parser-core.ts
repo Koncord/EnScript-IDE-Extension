@@ -431,7 +431,7 @@ export class Parser {
      * Parse class declaration
      */
     private parseClassDeclaration(modifiers: string[], annotations: string[][], declStartPos: Position): ClassDeclNode {
-        const startToken = this.expectToken('class');
+        const _startToken = this.expectToken('class');
         const startPos = declStartPos; // Use the position that includes modifiers
 
         const nameToken = this.expectIdentifier('class-name');
@@ -483,7 +483,7 @@ export class Parser {
      * Parse enum declaration
      */
     private parseEnumDeclaration(modifiers: string[], annotations: string[][], declStartPos: Position): EnumDeclNode {
-        const startToken = this.expectToken('enum');
+        const _startToken = this.expectToken('enum');
         const startPos = declStartPos; // Use the position that includes modifiers
 
         const nameToken = this.expectIdentifier('enum-name');
@@ -752,7 +752,7 @@ export class Parser {
      * Parse typedef declaration
      */
     private parseTypedefDeclaration(modifiers: string[], annotations: string[][], declStartPos: Position): TypedefDeclNode {
-        const startToken = this.expectToken('typedef');
+        const _startToken = this.expectToken('typedef');
         const startPos = declStartPos; // Use the position that includes modifiers
 
         // Parse the old type
