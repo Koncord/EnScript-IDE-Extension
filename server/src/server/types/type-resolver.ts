@@ -543,16 +543,71 @@ export class TypeResolver implements ITypeResolver {
             }
         }
 
-        // Then check class members
+        // Check class members in immediate class first (fast path)
         for (const member of classNode.members || []) {
             if (isVarDecl(member) && member.name === objectName) {
                 if (this.enableDetailedLogging) {
-                    Logger.debug(`🎯 TypeResolver: Found class member "${objectName}"`);
+                    Logger.debug(`🎯 TypeResolver: Found class member "${objectName}" in immediate class`);
                 }
                 return this.resolveVariableType(member, doc);
             }
         }
 
+        // If not found and this is a modded class, check merged definitions (slow path)
+        // Only do this expensive operation when necessary
+        if (classNode.modifiers?.includes('modded')) {
+            return this.searchInMergedClass(objectName, classNode.name, doc);
+        }
+
+        return null;
+    }
+
+    /**
+     * Search for a member in all merged class definitions (lazy, cached)
+     * Only called when member is not found in immediate class and class is modded
+     */
+    private searchInMergedClass(
+        objectName: string,
+        className: string,
+        doc?: TextDocument
+    ): string | null {
+        // Use cache key for merged class member lookup
+        const cacheKey = `merged:${className}:${objectName}`;
+        
+        if (this.typeCache.has(cacheKey)) {
+            return this.typeCache.get(cacheKey)!;
+        }
+
+        if (this.enableDetailedLogging) {
+            Logger.debug(`🔍 TypeResolver: Searching in merged class definitions for "${className}.${objectName}"`);
+        }
+
+        // Get ALL class definitions and merge them
+        const allClassDefs = this.findAllClassDefinitions(className);
+        const mergedClass = mergeClassDefinitions(allClassDefs);
+        
+        if (!mergedClass) {
+            this.typeCache.set(cacheKey, null);
+            return null;
+        }
+
+        if (this.enableDetailedLogging && allClassDefs.length > 1) {
+            Logger.debug(`🔄 TypeResolver: Merged ${allClassDefs.length} class definitions for "${className}" (${mergedClass.members?.length || 0} total members)`);
+        }
+
+        // Search in merged members
+        for (const member of mergedClass.members || []) {
+            if (isVarDecl(member) && member.name === objectName) {
+                if (this.enableDetailedLogging) {
+                    Logger.debug(`🎯 TypeResolver: Found class member "${objectName}" in merged class`);
+                }
+                const result = this.resolveVariableType(member, doc);
+                this.typeCache.set(cacheKey, result);
+                return result;
+            }
+        }
+
+        this.typeCache.set(cacheKey, null);
         return null;
     }
 
