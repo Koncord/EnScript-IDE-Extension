@@ -800,6 +800,18 @@ ${examples.good}
 
         // Method call on an object (e.g., obj.GetSomething())
         if (isMemberExpression(callee)) {
+            const methodName = callee.property.name;
+
+            // Special handling for Cast: if called statically (ClassName.Cast), always use the literal class name
+            // This ensures PlayerBase.Cast(...) returns PlayerBase, not a derived or variable type
+            if (methodName === 'Cast' && isIdentifier(callee.object)) {
+                const className = callee.object.name;
+                const classDefinitions = context.typeResolver?.findAllClassDefinitions(className);
+                if (classDefinitions && classDefinitions.length > 0) {
+                    Logger.debug(`🎯 Static Cast detected: ${className}.Cast(...) - returning class name: "${className}"`);
+                    return className;
+                }
+            }
 
             // First resolve the object type
             const objectResult = await this.resolveExpressionType(callee.object, position, context);
@@ -808,7 +820,6 @@ ${examples.good}
             }
 
             // Then find the return type of the method
-            const methodName = callee.property.name;
             return await this.resolveMethodReturnTypeFromClass(objectResult.typeName, methodName, context);
         }
 
