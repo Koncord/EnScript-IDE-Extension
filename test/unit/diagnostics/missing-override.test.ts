@@ -39,7 +39,7 @@ class DerivedClass : BaseClass {
 `;
             const results = await runDiagnosticRule(rule, code, testContext);
 
-            expectDiagnosticWithMessage(results, "Method 'DoSomething' shadows base class method without 'override' keyword");
+            expectDiagnosticWithMessage(results, "Method 'DoSomething' overrides base class method without 'override' keyword");
         });
 
         it('should not warn when override keyword is present', async () => {
@@ -117,7 +117,7 @@ class Child : Parent {
 `;
             const results = await runDiagnosticRule(rule, code, testContext);
 
-            expectDiagnosticWithMessage(results, "Method 'DoSomething' shadows base class method without 'override' keyword");
+            expectDiagnosticWithMessage(results, "Method 'DoSomething' overrides base class method without 'override' keyword");
         });
     });
 
@@ -248,7 +248,7 @@ modded class BaseClass {
 `;
             const results = await runDiagnosticRule(rule, code, testContext);
 
-            expectDiagnosticWithMessage(results, "Method 'DoSomething' shadows base class method without 'override' keyword");
+            expectDiagnosticWithMessage(results, "Method 'DoSomething' overrides base class method without 'override' keyword");
         });
 
         it('should not warn when modded class has override keyword', async () => {
@@ -315,6 +315,48 @@ modded class BaseClass {
 
             expectDiagnosticWithMessage(results, "Method1");
             expectNoDiagnosticWithMessage(results, "Method2");
+            expect(results.length).toBe(1);
+        });
+
+        it('should not warn for method overloads (different signatures)', async () => {
+            const code = `
+class MyClass {
+    void Func();
+}
+
+modded class MyClass {
+    void Func(int x) {  // Overload, not override
+    }
+
+    override void Func() {  // Override with same signature
+    }
+}
+`;
+            const results = await runDiagnosticRule(rule, code, testContext);
+
+            // Should not warn about Func(int x) since it's an overload
+            expect(results.length).toBe(0);
+        });
+
+        it('should distinguish between overload and override in modded class', async () => {
+            const code = `
+class BaseClass {
+    void DoWork();
+    void DoWork(int x);
+}
+
+modded class BaseClass {
+    void DoWork() {  // Missing override - same signature as base
+    }
+    
+    void DoWork(string s) {  // Overload - different signature
+    }
+}
+`;
+            const results = await runDiagnosticRule(rule, code, testContext);
+
+            // Should only warn about DoWork() without parameters
+            expectDiagnosticWithMessage(results, "overrides base class method");
             expect(results.length).toBe(1);
         });
     });

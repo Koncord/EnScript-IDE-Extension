@@ -88,9 +88,14 @@ export class MissingOverrideRule extends UndeclaredEntityRule {
                 return [];
             }
 
+            // Check if signatures match - only warn if this is an override, not an overload
+            if (!this.signaturesMatch(node, baseMethod)) {
+                return []; // Different signatures = overload, not override
+            }
+
             // Create diagnostic for missing override keyword
             const diagnostic = this.createDiagnostic(
-                `Method '${node.name}' shadows base class method without 'override' keyword`,
+                `Method '${node.name}' overrides base class method without 'override' keyword`,
                 node.nameStart,
                 node.nameEnd,
                 DiagnosticSeverity.Warning,
@@ -101,6 +106,40 @@ export class MissingOverrideRule extends UndeclaredEntityRule {
         }
 
         return [];
+    }
+
+    /**
+     * Check if two method signatures match (same parameter count and types)
+     */
+    private signaturesMatch(method1: MethodDeclNode, method2: MethodDeclNode): boolean {
+        const params1 = method1.parameters || [];
+        const params2 = method2.parameters || [];
+
+        // Different parameter count = different signature
+        if (params1.length !== params2.length) {
+            return false;
+        }
+
+        // Check each parameter type
+        for (let i = 0; i < params1.length; i++) {
+            const type1 = this.extractTypeName(params1[i].type);
+            const type2 = this.extractTypeName(params2[i].type);
+
+            // If we can't extract type names, consider them different
+            if (!type1 || !type2) {
+                if (type1 !== type2) {
+                    return false;
+                }
+                continue;
+            }
+
+            // Compare type names
+            if (type1 !== type2) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**
