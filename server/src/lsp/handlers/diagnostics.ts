@@ -15,14 +15,36 @@ import { INotificationService } from '../services/INotificationService';
 
 @injectable()
 export class DiagnosticsHandler implements IHandlerRegistration {
+    private validateFunction?: (change: TextDocumentChangeEvent<TextDocument>) => Promise<void>;
+    private documentsManager?: TextDocuments<TextDocument>;
+
     constructor(
         @inject(TYPES.IWorkspaceManager) private workspaceManager: IWorkspaceManager,
         @inject(TYPES.IDiagnosticsProvider) private diagnosticsProvider: IDiagnosticsProvider,
         @inject(SERVICE_TYPES.IIndexerService) private indexerService: IIndexerService,
         @inject(SERVICE_TYPES.INotificationService) private notificationService: INotificationService,
         @inject(ServerConfigurationManager) private configManager: ServerConfigurationManager
-    ) {}
+    ) { }
+
+    /**
+     * Re-validate all currently open documents.
+     * Used when configuration changes to apply new diagnostic rules.
+     */
+    public async validateAllOpenDocuments(): Promise<void> {
+        if (!this.validateFunction || !this.documentsManager) {
+            Logger.warn('⚠️ Cannot validate documents - handler not fully initialized');
+            return;
+        }
+
+        const allDocs = this.documentsManager.all();
+        Logger.info(`🔄 Re-validating ${allDocs.length} open document(s) after configuration change`);
+
+        // Validate all documents in parallel
+        await Promise.all(allDocs.map(doc => this.validateFunction!({ document: doc })));
+    }
+
     register(connection: Connection, documents: TextDocuments<TextDocument>): void {
+        this.documentsManager = documents;
         // Track recent validation requests to avoid double-running
         const recentValidations = new Map<string, number>();
         const DEBOUNCE_MS = 100; // Don't run diagnostics more than once per 100ms
@@ -103,6 +125,9 @@ export class DiagnosticsHandler implements IHandlerRegistration {
             // Await the validation
             await validationPromise;
         };
+
+        // Store validate function for later use (e.g., when configuration changes)
+        this.validateFunction = validate;
 
         // Track which external files have visible tabs and their pinned state
         // Note: Hover previews (Ctrl+hover) NEVER create tabs, so they're never tracked here

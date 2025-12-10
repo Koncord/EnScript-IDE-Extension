@@ -1,4 +1,5 @@
 import { DiagnosticRule, DiagnosticRuleConfig, DiagnosticCategory } from './rules';
+import type { DiagnosticConfigurationManager } from './configuration';
 
 /**
  * Rule registration options
@@ -8,7 +9,7 @@ export interface RuleRegistrationOptions {
     priority?: number;
     /** Whether to replace an existing rule with the same ID */
     replace?: boolean;
-    /** Default configuration override for this rule */
+    /** Default configuration for this rule (stored in global config manager) */
     config?: Partial<DiagnosticRuleConfig>;
 }
 
@@ -19,10 +20,19 @@ export class DiagnosticRuleRegistry {
     private rules = new Map<string, {
         rule: DiagnosticRule;
         priority: number;
-        config: DiagnosticRuleConfig;
     }>();
 
+    private configManager?: DiagnosticConfigurationManager;
+
     private sortedRuleCache: DiagnosticRule[] | null = null;
+
+    /**
+     * Set the configuration manager for this registry
+     * This allows the registry to delegate config lookups
+     */
+    setConfigManager(configManager: DiagnosticConfigurationManager): void {
+        this.configManager = configManager;
+    }
 
     /**
      * Register a diagnostic rule
@@ -35,9 +45,14 @@ export class DiagnosticRuleRegistry {
         }
 
         const priority = options.priority ?? 100;
-        const config = { ...rule.defaultConfig, ...options.config };
 
-        this.rules.set(rule.id, { rule, priority, config });
+        // Store default config in the config manager if not already present
+        if (this.configManager && !this.configManager.getRuleConfig(rule.id)) {
+            const defaultConfig = { ...rule.defaultConfig, ...options.config };
+            this.configManager.updateRuleConfig(rule.id, defaultConfig);
+        }
+
+        this.rules.set(rule.id, { rule, priority });
         this.sortedRuleCache = null; // Invalidate cache
     }
 
@@ -80,21 +95,37 @@ export class DiagnosticRuleRegistry {
 
     /**
      * Get configuration for a specific rule
+     * Delegates to the global configuration manager
      */
     getRuleConfig(ruleId: string): DiagnosticRuleConfig | undefined {
-        return this.rules.get(ruleId)?.config;
+        if (!this.configManager) {
+            // Fallback: return default config from the rule itself
+            const rule = this.rules.get(ruleId)?.rule;
+            return rule?.defaultConfig;
+        }
+
+        // First check config manager, fall back to rule's default config
+        const configFromManager = this.configManager.getRuleConfig(ruleId);
+        if (configFromManager) {
+            return configFromManager;
+        }
+
+        // If not in config manager, return rule's default
+        const rule = this.rules.get(ruleId)?.rule;
+        return rule?.defaultConfig;
     }
 
     /**
+     * @deprecated Use globalDiagnosticConfig.updateRuleConfig() instead
      * Update configuration for a specific rule
      */
     updateRuleConfig(ruleId: string, config: Partial<DiagnosticRuleConfig>): void {
-        const entry = this.rules.get(ruleId);
-        if (!entry) {
-            throw new Error(`Rule with ID '${ruleId}' is not registered.`);
+        if (!this.configManager) {
+            throw new Error('Config manager not set. Call setConfigManager() first.');
         }
 
-        entry.config = { ...entry.config, ...config };
+        // Delegate to config manager
+        this.configManager.updateRuleConfig(ruleId, config);
     }
 
     /**
@@ -128,7 +159,10 @@ export class DiagnosticRuleRegistry {
         rulesByCategory: Record<DiagnosticCategory, number>;
     } {
         const allRules = Array.from(this.rules.values());
-        const enabledRules = allRules.filter(entry => entry.config.enabled);
+        const enabledRules = allRules.filter(entry => {
+            const config = this.getRuleConfig(entry.rule.id);
+            return config?.enabled ?? true;
+        });
 
         const rulesByCategory: Record<DiagnosticCategory, number> = {
             [DiagnosticCategory.SYNTAX]: 0,
@@ -141,7 +175,8 @@ export class DiagnosticRuleRegistry {
         };
 
         allRules.forEach(entry => {
-            if (entry.config.enabled) {
+            const config = this.getRuleConfig(entry.rule.id);
+            if (config?.enabled ?? true) {
                 rulesByCategory[entry.rule.category]++;
             }
         });
@@ -163,13 +198,16 @@ export class DiagnosticRuleRegistry {
         priority: number;
         enabled: boolean;
     }> {
-        return Array.from(this.rules.entries()).map(([id, entry]) => ({
-            id,
-            name: entry.rule.name,
-            category: entry.rule.category,
-            priority: entry.priority,
-            enabled: entry.config.enabled
-        }));
+        return Array.from(this.rules.entries()).map(([id, entry]) => {
+            const config = this.getRuleConfig(id);
+            return {
+                id,
+                name: entry.rule.name,
+                category: entry.rule.category,
+                priority: entry.priority,
+                enabled: config?.enabled ?? true
+            };
+        });
     }
 }
 
@@ -177,3 +215,8 @@ export class DiagnosticRuleRegistry {
  * Global registry instance
  */
 export const globalDiagnosticRegistry = new DiagnosticRuleRegistry();
+
+// Connect the registry to the global config manager
+// This must be done after both are created to avoid circular dependency issues
+import { globalDiagnosticConfig } from './configuration';
+globalDiagnosticRegistry.setConfigManager(globalDiagnosticConfig);

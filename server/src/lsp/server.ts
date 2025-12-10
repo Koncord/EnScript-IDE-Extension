@@ -14,6 +14,7 @@ import { TextDocument } from 'vscode-languageserver-textdocument';
 import { ServerConfigurationManager } from './server-config';
 import { Logger } from '../util/logger';
 import { TYPES } from '../server/di';
+import { DiagnosticsHandler } from './handlers/diagnostics';
 import { VSCodeConfiguration } from '../util';
 import { inject, injectable } from 'inversify';
 import { NotificationService } from './services/NotificationService';
@@ -209,6 +210,10 @@ export class EnscriptLanguageServer {
                 await this.indexerService.indexFiles(this.configManager.getConfiguration().workspaceRoot, allIncludePaths);
                 Logger.info('🔄 Re-indexing completed, handlers remain active');
             }
+
+            // Re-run diagnostics for all open documents when configuration changes
+            const diagnosticsHandler = this.container.get<DiagnosticsHandler>(HANDLER_TYPES.DiagnosticsHandler);
+            await diagnosticsHandler.validateAllOpenDocuments();
         });
 
         // Handle force re-index request

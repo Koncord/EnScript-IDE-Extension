@@ -35,6 +35,12 @@ export function configureServerContainer(
     container.bind<INotificationService>(SERVICE_TYPES.INotificationService).to(NotificationService).inSingletonScope();
     container.bind<IIndexerService>(SERVICE_TYPES.IIndexerService).to(IndexerService).inSingletonScope();
 
+    // Bind DiagnosticsHandler as singleton and register it as both specific type and handler interface
+    container.bind<DiagnosticsHandler>(HANDLER_TYPES.DiagnosticsHandler).to(DiagnosticsHandler).inSingletonScope();
+    container.bind<IHandlerRegistration>(HANDLER_TYPES.IHandlerRegistration).toDynamicValue(() => {
+        return container.get<DiagnosticsHandler>(HANDLER_TYPES.DiagnosticsHandler);
+    }).inSingletonScope();
+
     // Transient - Stateless handlers that can be created per registration
     container.bind<IHandlerRegistration>(HANDLER_TYPES.IHandlerRegistration).to(CompletionHandler).inTransientScope();
     container.bind<IHandlerRegistration>(HANDLER_TYPES.IHandlerRegistration).to(DefinitionHandler).inTransientScope();
@@ -43,7 +49,6 @@ export function configureServerContainer(
     container.bind<IHandlerRegistration>(HANDLER_TYPES.IHandlerRegistration).to(RenameHandler).inTransientScope();
     container.bind<IHandlerRegistration>(HANDLER_TYPES.IHandlerRegistration).to(WorkspaceSymbolHandler).inTransientScope();
     container.bind<IHandlerRegistration>(HANDLER_TYPES.IHandlerRegistration).to(DocumentSymbolHandler).inTransientScope();
-    container.bind<IHandlerRegistration>(HANDLER_TYPES.IHandlerRegistration).to(DiagnosticsHandler).inTransientScope();
     container.bind<IHandlerRegistration>(HANDLER_TYPES.IHandlerRegistration).to(DumpDiagnosticsHandler).inTransientScope();
     container.bind<IHandlerRegistration>(HANDLER_TYPES.IHandlerRegistration).to(DumpClassesHandler).inTransientScope();
     container.bind<IHandlerRegistration>(HANDLER_TYPES.IHandlerRegistration).to(ProjectFileHandler).inTransientScope();

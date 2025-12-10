@@ -5,7 +5,8 @@ import { TextDocument } from 'vscode-languageserver-textdocument';
  * DI token for handler registration
  */
 export const HANDLER_TYPES = {
-    IHandlerRegistration: Symbol.for('IHandlerRegistration')
+    IHandlerRegistration: Symbol.for('IHandlerRegistration'),
+    DiagnosticsHandler: Symbol.for('DiagnosticsHandler'),
 };
 
 /**
