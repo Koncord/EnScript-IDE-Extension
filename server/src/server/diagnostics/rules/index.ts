@@ -11,6 +11,7 @@ export { TypeMismatchRule } from './type-mismatch';
 export { IncorrectRefUsageRule } from './incorrect-ref-usage';
 export { VariableShadowingRule } from './variable-shadowing';
 export { MissingOverrideRule } from './missing-override';
+export { OverrideAccessModifierMismatchRule } from './override-access-modifier-mismatch';
 
 import { DiagnosticRule } from '../rules';
 import { UnusedTypedefRule } from './unused-typedef';
@@ -25,6 +26,7 @@ import { TypeMismatchRule } from './type-mismatch';
 import { IncorrectRefUsageRule } from './incorrect-ref-usage';
 import { VariableShadowingRule } from './variable-shadowing';
 import { MissingOverrideRule } from './missing-override';
+import { OverrideAccessModifierMismatchRule } from './override-access-modifier-mismatch';
 import { DiagnosticRuleRegistry } from '../registry';
 
 /**
@@ -43,7 +45,8 @@ export function getBuiltInRules(): DiagnosticRule[] {
         new TypeMismatchRule(),
         new IncorrectRefUsageRule(),
         new VariableShadowingRule(),
-        new MissingOverrideRule()
+        new MissingOverrideRule(),
+        new OverrideAccessModifierMismatchRule()
     ];
 }
 
@@ -106,6 +109,10 @@ export function registerBuiltInRules(registry: DiagnosticRuleRegistry): void {
     });
 
     registry.register(new MissingOverrideRule(), {
+        priority: 85 // Warning rule, run after critical checks
+    });
+
+    registry.register(new OverrideAccessModifierMismatchRule(), {
         priority: 85 // Warning rule, run after critical checks
     });
 }
