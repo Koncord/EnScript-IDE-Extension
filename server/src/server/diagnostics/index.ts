@@ -22,6 +22,13 @@ export {
     globalDiagnosticConfig,
     defaultDiagnosticConfiguration
 } from './configuration';
+export {
+    SuppressionMap,
+    SuppressionDirective,
+    buildSuppressionMap,
+    isDiagnosticSuppressed,
+    getSuppressedRulesForLine
+} from './suppression';
 
 // Built-in rules
 export {

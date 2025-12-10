@@ -3,6 +3,7 @@ import { Logger } from '../../../util';
 import { ASTNode } from '../../ast';
 import { DiagnosticRuleRegistry } from '../registry';
 import { DiagnosticRule, DiagnosticRuleContext, DiagnosticRuleResult } from '../rules';
+import { isDiagnosticSuppressed } from '../suppression';
 
 /**
  * Iterative traversal for running diagnostic rules on AST nodes
@@ -212,9 +213,18 @@ export class DiagnosticVisitor {
                 }
             }
 
-            // Convert results to diagnostics with deduplication
+            // Convert results to diagnostics with deduplication and suppression filtering
             for (const result of results) {
                 const diagnostic = this.convertToDiagnostic(result, rule);
+                
+                // Check if this diagnostic should be suppressed
+                const line = diagnostic.range.start.line;
+                const isSuppressed = this.context.suppressionMap && 
+                    isDiagnosticSuppressed(line, rule.id, this.context.suppressionMap);
+                
+                if (isSuppressed) {
+                    continue; // Skip suppressed diagnostics
+                }
                 
                 // Deduplicate during collection instead of after
                 const key = this.getDiagnosticKey(diagnostic);

@@ -2,6 +2,7 @@ import { TextDocument } from 'vscode-languageserver-textdocument';
 import { DiagnosticRelatedInformation, DiagnosticTag, DiagnosticSeverity } from 'vscode-languageserver';
 import { ASTNode, FileNode, ClassDeclNode } from '../ast';
 import { ITypeResolver } from '../types/type-resolver-interfaces';
+import { SuppressionMap } from './suppression';
 
 /**
  * Diagnostic category for grouping related diagnostics
@@ -71,6 +72,11 @@ export interface DiagnosticRuleContext {
      * Shared cache for expensive computations that can be reused across rules
      */
     sharedCache?: DiagnosticSharedCache;
+    /**
+     * Suppression map containing comment-based suppression directives
+     * Used to suppress diagnostics via // enscript-disable-line or // enscript-disable-next-line
+     */
+    suppressionMap?: SuppressionMap;
 }
 
 /**

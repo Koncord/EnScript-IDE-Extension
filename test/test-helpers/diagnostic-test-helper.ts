@@ -18,6 +18,8 @@ import { PreprocessorConfig } from '../../server/src/server/di/preprocessor-conf
 import { TYPES } from '../../server/src/server/di/tokens';
 import { FileNode } from '../../server/src/server/ast/node-types';
 import { DiagnosticRuleContext, DiagnosticRule } from '../../server/src/server/diagnostics/rules';
+import { buildSuppressionMap, isDiagnosticSuppressed } from '../../server/src/server/diagnostics/suppression';
+import { lex } from '../../server/src/server/lexer/preprocessor-lexer';
 
 /**
  * Test context that includes all necessary components for diagnostic testing
@@ -94,6 +96,10 @@ export function createDiagnosticContext(
     file: FileNode,
     testContext: DiagnosticTestContext
 ): DiagnosticRuleContext {
+    // Build suppression map from document
+    const tokens = lex(document.getText());
+    const suppressionMap = buildSuppressionMap(tokens, document);
+    
     return {
         document,
         ast: file,
@@ -101,7 +107,8 @@ export function createDiagnosticContext(
         typeResolver: testContext.typeResolver,
         includePaths: [],
         loadClassFromIncludePaths: async () => {},
-        sharedCache: {}
+        sharedCache: {},
+        suppressionMap
     };
 }
 
@@ -131,7 +138,17 @@ export async function runDiagnosticRule(
                 enabled: true,
                 severity: DiagnosticSeverity.Error
             });
-            results.push(...diagnostics);
+            
+            // Filter suppressed diagnostics (mimics DiagnosticVisitor behavior)
+            for (const diagnostic of diagnostics) {
+                const line = diagnostic.range.start.line;
+                const isSuppressed = context.suppressionMap && 
+                    isDiagnosticSuppressed(line, rule.id, context.suppressionMap);
+                
+                if (!isSuppressed) {
+                    results.push(diagnostic);
+                }
+            }
         }
 
         // Traverse children - only follow structural properties, not parent references

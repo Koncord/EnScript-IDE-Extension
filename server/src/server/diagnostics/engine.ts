@@ -18,12 +18,15 @@ import type {
     EnumDeclNode
 } from '../ast/node-types';
 import { Logger } from '../../util/logger';
+import { isDiagnosticSuppressed } from './suppression';
 import { isAssignmentExpression, isBinaryExpression, isBlockStatement, isCallExpression, isClass, isEnum, isExpression, isForEachStatement, isForStatement, isFunction, isIfStatement, isMemberExpression, isMethod, isWhileStatement } from '../../util';
 import {
     IDiagnosticEngine,
     DiagnosticEngineOptions,
     DiagnosticPerformanceMetrics
 } from './engine-interfaces';
+import { buildSuppressionMap } from './suppression';
+import { lex } from '../lexer/preprocessor-lexer';
 
 /**
  * Main diagnostic engine that executes rules against AST nodes
@@ -55,6 +58,10 @@ export class DiagnosticEngine implements IDiagnosticEngine {
     }> {
         const startTime = this.options.enableTiming ? performance.now() : 0;
 
+        // Lex the document to extract comment tokens for suppression directives
+        const tokens = lex(document.getText());
+        const suppressionMap = buildSuppressionMap(tokens, document);
+
         // Initialize node diagnostics tracking map
         const nodeDiagnostics = new Map<ASTNode, Set<string>>();
         const ruleSkipCounts = new Map<string, number>();
@@ -63,7 +70,7 @@ export class DiagnosticEngine implements IDiagnosticEngine {
             expressionTypeCache: new Map(),
             enumNameCache: new Map()
         };
-        const ruleContext: DiagnosticRuleContext = { ...context, document, ast, nodeDiagnostics, ruleSkipCounts, sharedCache };
+        const ruleContext: DiagnosticRuleContext = { ...context, document, ast, nodeDiagnostics, ruleSkipCounts, sharedCache, suppressionMap };
 
         const diagnostics: Diagnostic[] = [];
         const ruleExecutionTimes: Array<{ ruleId: string; time: number; diagnosticCount: number; skippedCount?: number }> = [];
@@ -344,9 +351,21 @@ export class DiagnosticEngine implements IDiagnosticEngine {
                     }
                 }
 
-                // Convert results to diagnostics
+                // Convert results to diagnostics with suppression filtering
                 for (const result of results) {
-                    diagnostics.push(this.convertToDiagnostic(result, rule));
+                    const diagnostic = this.convertToDiagnostic(result, rule);
+                    
+                    // Check if this diagnostic should be suppressed
+                    if (context.suppressionMap) {
+                        const line = diagnostic.range.start.line;
+                        const isSuppressed = isDiagnosticSuppressed(line, rule.id, context.suppressionMap);
+                        
+                        if (isSuppressed) {
+                            continue; // Skip suppressed diagnostics
+                        }
+                    }
+                    
+                    diagnostics.push(diagnostic);
                 }
 
                 // Stop if we've reached the max diagnostics limit
