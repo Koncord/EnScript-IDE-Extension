@@ -1046,19 +1046,21 @@ export class TypeResolver implements ITypeResolver {
                 return 'string';
             }
 
-            // Numeric type promotion
+            // Numeric type promotion - only for numeric/enum types, NOT vectors
+            const leftIsNumeric = leftType && this.isNumericOrEnumType(leftType);
+            const rightIsNumeric = rightType && this.isNumericOrEnumType(rightType);
+
+            if (leftIsNumeric && rightIsNumeric) {
+                // Both are numeric/enum - apply standard type promotion
             if (leftType === 'float' || rightType === 'float') {
                 return 'float';
             }
-
-            // Enum + int or int + enum -> int
-            // Enum + enum -> int (enums are backed by integers)
             if (this.isEnumType(leftType) || this.isEnumType(rightType)) {
                 return 'int';
             }
-
             if (leftType === 'int' && rightType === 'int') {
                 return 'int';
+                }
             }
 
             // If we couldn't resolve one of the types, don't guess
