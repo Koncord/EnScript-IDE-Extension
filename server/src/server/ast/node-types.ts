@@ -400,7 +400,7 @@ export interface WhileStatement extends Statement {
  */
 export interface ForStatement extends Statement {
     kind: 'ForStatement';
-    init?: VarDeclNode | Expression;
+    init?: VarDeclNode | DeclarationStatement | Expression;
     test?: Expression;
     update?: Expression;
     body: Statement;

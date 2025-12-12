@@ -388,39 +388,28 @@ export class StatementParser {
         this.expectToken('(');
 
         // Parse init (can be variable declaration or expression)
-        let init: VarDeclNode | Expression | undefined;
+        let init: VarDeclNode | DeclarationStatement | Expression | undefined;
         if (this.tokenStream.peek().value !== ';') {
             if (this.looksLikeVariableDeclaration()) {
-                // Parse first variable declaration
-                init = this.parseVarDeclaration();
-
-                // Handle additional comma-separated variables
-                while (this.tokenStream.peek().value === ',') {
-                    this.tokenStream.next(); // consume ','
-
-                    // Parse additional variable (same type as the first one)
-                    this.expectIdentifier();
-
-                    // Check for initializer
-                    if (this.tokenStream.peek().value === '=') {
-                        this.tokenStream.next(); // consume '='
-                        this.expressionParser.parseExpression(); // Parse but don't store (for now)
-                    } else if (this.tokenStream.peek().value === '(') {
-                        // Handle constructor call syntax
-                        this.tokenStream.next(); // consume '('
-
-                        while (this.tokenStream.peek().value !== ')' && !this.tokenStream.eof()) {
-                            this.expressionParser.parseExpression();
-
-                            if (this.tokenStream.peek().value === ',') {
-                                this.tokenStream.next(); // consume ','
-                            } else {
-                                break;
-                            }
-                        }
-
-                        this.expectToken(')');
-                    }
+                // Parse variable declaration(s)
+                const declarations = this.parseForLoopVariableDeclarations();
+                
+                // If there's only one declaration, store it directly
+                // If there are multiple, wrap in a DeclarationStatement
+                if (declarations.length === 1) {
+                    init = declarations[0];
+                } else {
+                    // Multiple declarations - create a DeclarationStatement
+                    const firstDecl = declarations[0];
+                    const lastDecl = declarations[declarations.length - 1];
+                    init = {
+                        kind: 'DeclarationStatement',
+                        uri: this.document.uri,
+                        start: firstDecl.start,
+                        end: lastDecl.end,
+                        declaration: firstDecl,
+                        declarations: declarations
+                    };
                 }
             } else {
                 init = this.expressionParser.parseExpression();
@@ -1261,6 +1250,31 @@ export class StatementParser {
      */
     private getExpressionEnd(expr: Expression): Position {
         return expr.end;
+    }
+
+    /**
+     * Parse comma-separated variable declarations for for loop (without semicolon)
+     * Example: int j = 1, i = 0
+     */
+    private parseForLoopVariableDeclarations(): VarDeclNode[] {
+        const declarations: VarDeclNode[] = [];
+
+        // Parse type (all variables in the comma list share the same type)
+        const type = this.parseTypeNode();
+
+        // Parse first variable
+        const firstNameToken = this.expectIdentifier();
+        declarations.push(this.createVariableDeclaration([], [], type, firstNameToken));
+
+        // Parse additional comma-separated variables
+        while (this.tokenStream.peek().value === ',') {
+            this.tokenStream.next(); // consume ','
+
+            const nameToken = this.expectIdentifier();
+            declarations.push(this.createVariableDeclaration([], [], type, nameToken));
+        }
+
+        return declarations;
     }
 
     /**
