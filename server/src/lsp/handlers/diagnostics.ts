@@ -182,8 +182,12 @@ export class DiagnosticsHandler implements IHandlerRegistration {
             const uri = change.document.uri;
 
             if (isExternalFile(uri, this.workspaceManager.getWorkspaceRoot(), this.workspaceManager.getIncludePaths())) {
-                // External file - check if diagnostics should run based on tab state and settings
-                if (shouldRunDiagnosticsForExternalFile(uri)) {
+                // External file - check if it's marked as opened in workspace manager
+                // This is more reliable than waiting for tab notifications
+                const isOpened = this.workspaceManager.isDocumentOpened(uri);
+                
+                if (isOpened || shouldRunDiagnosticsForExternalFile(uri)) {
+                    // File is opened in workspace manager or has a tab open, run diagnostics
                     validate(change);
                 }
                 // Otherwise skip diagnostics
