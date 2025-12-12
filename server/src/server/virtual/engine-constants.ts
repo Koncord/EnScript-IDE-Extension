@@ -61,35 +61,77 @@ const int UALeanRight = 2;
 const int UADefaultAction = 3;
 const int UAGear = 4;
 const int UATempRaiseWeapon = 5;
+const int UAUIGesturesOpen = 6;
+const int UAChat = 7;
+const int UAUIQuickbarToggle = 8;
+const int UAZeroingUp = 9;
+const int UAZeroingDown = 10;
+const int UAToggleWeapons = 11;
+const int UANextActionCategory = 12;
+const int UAPrevActionCategory = 13;
+const int UANextAction = 14;
+const int UAPrevAction = 15;
+const int UAMapToggle = 16;
+const int UAUIBack = 17;
+const int UAUIQuickbarRadialOpen = 18;
+const int UAWalkRunForced = 19;
+const int UAUISelect = 20;
+const int UAAction = 21;
+const int UAUICtrlX = 22;
+const int UAUICtrlY = 23;
+const int UAUIThumbRight = 24;
+const int UAUICopyDebugMonitorPos = 25;
+const int UAUITabLeft = 26;
+const int UAUITabRight = 27;
+const int UASwitchPreset = 28;
+const int UAUIDown = 29;
+const int UAUIUp = 30;
+const int UAUIRight = 31;
+const int UAUILeft = 32;
+const int UAUINextUp = 33;
+const int UAUINextDown = 34;
+const int UAUICredits = 35;
+const int UAUIRotateInventory = 36;
+const int UAUICombine = 37;
+const int UAPersonView = 38;
+const int UAAimRight = 39;
+const int UAAimLeft = 40;
+const int UALookAround = 41;
+const int UAGetOver = 42;
+const int UAMoveForward = 43;
+const int UAMoveBack = 44;
+const int UAReloadMagazine = 45;
+const int UATurbo = 46;
+const int UAWalkRunTemp = 47;
 
 
-const int TextWidgetTypeID = 0;
-const int MultilineTextWidgetTypeID = 1;
-const int MultilineEditBoxWidgetTypeID = 2;
-const int RichTextWidgetTypeID = 3;
-const int RenderTargetWidgetTypeID = 4;
-const int ImageWidgetTypeID = 5;
-const int ConsoleWidgetTypeID = 6;
-const int VideoWidgetTypeID = 7;
-const int RTTextureWidgetTypeID = 8;
-const int FrameWidgetTypeID = 9;
-const int EmbededWidgetTypeID = 10;
-const int ButtonWidgetTypeID = 11;
-const int CheckBoxWidgetTypeID = 12;
-const int WindowWidgetTypeID = 13;
-const int ComboBoxWidgetTypeID = 14;
-const int SimpleProgressBarWidgetTypeID = 15;
-const int ProgressBarWidgetTypeID = 16;
-const int SliderWidgetTypeID = 17;
-const int BaseListboxWidgetTypeID = 18;
-const int TextListboxWidgetTypeID = 19;
-const int GenericListboxWidgetTypeID = 20;
-const int EditBoxWidgetTypeID = 21;
-const int PasswordEditBoxWidgetTypeID = 22;
-const int WorkspaceWidgetTypeID = 23;
-const int GridSpacerWidgetTypeID = 24;
-const int WrapSpacerWidgetTypeID = 25;
-const int ScrollWidgetTypeID = 26;
+const WidgetType TextWidgetTypeID = 0;
+const WidgetType MultilineTextWidgetTypeID = 1;
+const WidgetType MultilineEditBoxWidgetTypeID = 2;
+const WidgetType RichTextWidgetTypeID = 3;
+const WidgetType RenderTargetWidgetTypeID = 4;
+const WidgetType ImageWidgetTypeID = 5;
+const WidgetType ConsoleWidgetTypeID = 6;
+const WidgetType VideoWidgetTypeID = 7;
+const WidgetType RTTextureWidgetTypeID = 8;
+const WidgetType FrameWidgetTypeID = 9;
+const WidgetType EmbededWidgetTypeID = 10;
+const WidgetType ButtonWidgetTypeID = 11;
+const WidgetType CheckBoxWidgetTypeID = 12;
+const WidgetType WindowWidgetTypeID = 13;
+const WidgetType ComboBoxWidgetTypeID = 14;
+const WidgetType SimpleProgressBarWidgetTypeID = 15;
+const WidgetType ProgressBarWidgetTypeID = 16;
+const WidgetType SliderWidgetTypeID = 17;
+const WidgetType BaseListboxWidgetTypeID = 18;
+const WidgetType TextListboxWidgetTypeID = 19;
+const WidgetType GenericListboxWidgetTypeID = 20;
+const WidgetType EditBoxWidgetTypeID = 21;
+const WidgetType PasswordEditBoxWidgetTypeID = 22;
+const WidgetType WorkspaceWidgetTypeID = 23;
+const WidgetType GridSpacerWidgetTypeID = 24;
+const WidgetType WrapSpacerWidgetTypeID = 25;
+const WidgetType ScrollWidgetTypeID = 26;
 
 const int MB_PRESSED_MASK = 1;
 
@@ -101,6 +143,35 @@ const int CT_STRING = 3;
 const int CT_ARRAY = 4;
 const int CT_CLASS = 5;
 const int CT_OTHER = 6;
+
+const int VoiceLevelWhisper = 0;
+const int VoiceLevelTalk = 1;
+const int VoiceLevelShout = 2;
+
+// const EventType WindowsResizeEventTypeID = 1; // unsure about it.
+
+const int EUAINPUT_DEVICE_KEYBOARD = 1;
+const int EUAINPUT_DEVICE_MOUSE = 2;
+const int EUAINPUT_DEVICE_KEYBOARDMOUSE = 3;
+const int EUAINPUT_DEVICE_CONTROLLER = 4;
+const int EUAINPUT_DEVICE_IR  = 5;
+
+enum LinebreakOverrideMode
+{
+	LINEBREAK_DEFAULT,
+	LINEBREAK_WESTERN,
+	LINEBREAK_ASIAN
+};
+
+const int HIDE_INV_FROM_SCRIPT = 1;
+
+const int CCSystem = 0;
+const int CCAdmin = 1;
+const int CCDirect = 2;
+const int CCMegaphone = 3;
+const int CCTransmitter = 4;
+const int CCPublicAddressSystem = 5;
+const int CCBattlEye = 6;
 
 `;
 
