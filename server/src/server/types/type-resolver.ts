@@ -39,7 +39,8 @@ import {
     isBlockStatement,
     isDeclaration,
     isAutoType,
-    isForEachStatement
+    isForEachStatement,
+    isLiteral
 } from '../util/ast-class-utils';
 import { parseGenericType } from '../util/type-utils';
 import { isMethod, isFunction, isClass, findMemberInClassWithInheritance } from '../util/ast-class-utils';
@@ -1009,6 +1010,23 @@ export class TypeResolver implements ITypeResolver {
 
         // Handle comparison operators
         if (['==', '!=', '<', '>', '<=', '>='].includes(expr.operator)) {
+            // Special case: vector comparison with vector-like strings
+            // Allow: if (pos == "0 0 0"), if (dir != "1 0 0")
+            if (expr.operator === '==' || expr.operator === '!=') {
+                const hasVector = leftType === 'vector' || rightType === 'vector';
+                const hasString = leftType === 'string' || rightType === 'string';
+                if (hasVector && hasString) {
+                    // Check if the string operand is actually vector-like
+                    if (leftType === 'string' && this.isVectorLikeStringLiteral(expr.left)) {
+                        return 'bool';
+                    }
+                    if (rightType === 'string' && this.isVectorLikeStringLiteral(expr.right)) {
+                        return 'bool';
+                    }
+                    // If not vector-like, fall through to return null (type error)
+                    return null;
+                }
+            }
             return 'bool';
         }
 
@@ -1025,7 +1043,21 @@ export class TypeResolver implements ITypeResolver {
                 return 'vector';
             }
 
-            // Vector-scalar multiplication: vector * scalar or scalar * vector -> vector
+            // Vector-string arithmetic: vector +- string -> vector
+            // DayZ/EnScript implicitly converts strings like "1 2 3" to vectors
+            // Only valid if the string is actually a vector-like literal
+            if ((expr.operator === '+' || expr.operator === '-')) {
+                // Check if we have vector + vector-like string
+                if (leftType === 'vector' && rightType === 'string' && this.isVectorLikeStringLiteral(expr.right)) {
+                    return 'vector';
+                }
+                // Check if we have vector-like string + vector
+                if (leftType === 'string' && rightType === 'vector' && this.isVectorLikeStringLiteral(expr.left)) {
+                    return 'vector';
+                }
+            }
+
+            // Vector multiplication: vector * (scalar|vector|vector-string) -> vector
             // Scalars can be int, float, or enum types
             if (expr.operator === '*') {
                 const hasVector = leftType === 'vector' || rightType === 'vector';
@@ -1033,16 +1065,31 @@ export class TypeResolver implements ITypeResolver {
                 if (hasVector && hasNumericOrEnum) {
                     return 'vector';
                 }
+                // Also support: vector * "1 2 3" or "1 2 3" * vector
+                if (leftType === 'vector' && rightType === 'string' && this.isVectorLikeStringLiteral(expr.right)) {
+                    return 'vector';
+                }
+                if (leftType === 'string' && rightType === 'vector' && this.isVectorLikeStringLiteral(expr.left)) {
+                    return 'vector';
+                }
             }
 
-            // Vector-scalar division: vector / scalar -> vector
+            // Vector division: vector / (scalar|vector-string) -> vector
             // Scalars can be int, float, or enum types
-            if (expr.operator === '/' && leftType === 'vector' && this.isNumericOrEnumType(rightType)) {
-                return 'vector';
+            if (expr.operator === '/') {
+                if (leftType === 'vector' && this.isNumericOrEnumType(rightType)) {
+                    return 'vector';
+                }
+                // Also support: vector / "1 2 3"
+                if (leftType === 'vector' && rightType === 'string' && this.isVectorLikeStringLiteral(expr.right)) {
+                    return 'vector';
+                }
             }
 
-            // String concatenation
-            if (expr.operator === '+' && (leftType === 'string' || rightType === 'string')) {
+            // String concatenation (only when not mixed with vector)
+            if (expr.operator === '+' && 
+                (leftType === 'string' || rightType === 'string') &&
+                leftType !== 'vector' && rightType !== 'vector') {
                 return 'string';
             }
 
@@ -1106,6 +1153,24 @@ export class TypeResolver implements ITypeResolver {
             return false;
         }
         return this.isNumericType(typeName) || this.isEnumType(typeName);
+    }
+
+    /**
+     * Check if an expression is a string literal that looks like a vector ("x y z")
+     * DayZ/EnScript implicitly converts strings like "1 2 3" to vectors
+     */
+    private isVectorLikeStringLiteral(expr: Expression): boolean {
+        if (!isLiteral(expr)) {
+            return false;
+        }
+        const literal = expr as Literal;
+        if (literal.literalType !== 'string' || typeof literal.value !== 'string') {
+            return false;
+        }
+        // Match pattern: "number number number" where numbers can be int or float, positive or negative
+        // Examples: "1 2 3", "1.5 -2.3 0", "-10 5 3.14"
+        const vectorPattern = /^\s*-?\d+(?:\.\d+)?\s+-?\d+(?:\.\d+)?\s+-?\d+(?:\.\d+)?\s*$/;
+        return vectorPattern.test(literal.value);
     }
 
     /**

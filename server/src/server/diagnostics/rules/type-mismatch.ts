@@ -10,7 +10,8 @@ import {
     ASTNode,
     VarDeclNode,
     CallExpression,
-    Expression
+    Expression,
+    Literal
 } from '../../ast';
 import {
     isAssignmentExpression,
@@ -19,7 +20,8 @@ import {
     isCallExpression,
     isReturnStatement,
     isIdentifier,
-    isMemberExpression
+    isMemberExpression,
+    isLiteral
 } from '../../util/ast-class-utils';
 import {
     AssignmentExpression,
@@ -152,7 +154,7 @@ export class TypeMismatchRule extends BaseDiagnosticRule {
                 return results;
             }
 
-            if (!this.isTypeCompatible(targetType, valueType, context)) {
+            if (!this.isTypeCompatible(targetType, valueType, context, node.right)) {
                 results.push(
                     this.createTypeMismatchDiagnostic(
                         `Type '${valueType}' is not assignable to type '${targetType}'`,
@@ -222,7 +224,7 @@ export class TypeMismatchRule extends BaseDiagnosticRule {
                 return results;
             }
 
-            if (!this.isTypeCompatible(declaredType, initializerType, context)) {
+            if (!this.isTypeCompatible(declaredType, initializerType, context, node.initializer)) {
                 results.push(
                     this.createTypeMismatchDiagnostic(
                         `Type '${initializerType}' is not assignable to type '${declaredType}'`,
@@ -289,7 +291,7 @@ export class TypeMismatchRule extends BaseDiagnosticRule {
                 return results;
             }
 
-            if (!this.isTypeCompatible(declaredReturnType, returnedType, context)) {
+            if (!this.isTypeCompatible(declaredReturnType, returnedType, context, node.argument)) {
                 results.push(this.createTypeMismatchDiagnostic(
                     `Type '${returnedType}' is not assignable to type '${declaredReturnType}'`,
                     node.argument,
@@ -367,7 +369,7 @@ export class TypeMismatchRule extends BaseDiagnosticRule {
                 }
 
                 // Check type compatibility
-                if (!this.isTypeCompatible(paramType, argType, context)) {
+                if (!this.isTypeCompatible(paramType, argType, context, arg)) {
                     results.push(
                         this.createTypeMismatchDiagnostic(
                             `Argument of type '${argType}' is not assignable to parameter of type '${paramType}'`,
@@ -393,6 +395,24 @@ export class TypeMismatchRule extends BaseDiagnosticRule {
      * Check for implicit conversions that should generate warnings
      * @returns DiagnosticRuleResult if a warning should be generated, null otherwise
      */
+    /**
+     * Check if an expression is a string literal that looks like a vector ("x y z")
+     * DayZ/EnScript implicitly converts strings like "1 2 3" to vectors
+     */
+    private isVectorLikeStringLiteral(expr: Expression): boolean {
+        if (!isLiteral(expr)) {
+            return false;
+        }
+        const literal = expr as Literal;
+        if (literal.literalType !== 'string' || typeof literal.value !== 'string') {
+            return false;
+        }
+        // Match pattern: "number number number" where numbers can be int or float, positive or negative
+        // Examples: "1 2 3", "1.5 -2.3 0", "-10 5 3.14"
+        const vectorPattern = /^\s*-?\d+(?:\.\d+)?\s+-?\d+(?:\.\d+)?\s+-?\d+(?:\.\d+)?\s*$/;
+        return vectorPattern.test(literal.value);
+    }
+
     private checkImplicitConversion(
         targetType: string,
         sourceType: string,
@@ -535,6 +555,16 @@ export class TypeMismatchRule extends BaseDiagnosticRule {
                     return results;
                 }
 
+                // Vector-string operations: vector +- string (where string is vector-like "x y z")
+                if ((operator === '+' || operator === '-')) {
+                    if (leftType === 'vector' && rightType === 'string' && this.isVectorLikeStringLiteral(node.right)) {
+                        return results;
+                    }
+                    if (leftType === 'string' && rightType === 'vector' && this.isVectorLikeStringLiteral(node.left)) {
+                        return results;
+                    }
+                }
+
                 // vector * scalar, scalar * vector (scaling)
                 // Scalars can be numeric types (int, float) or enums (implicitly cast to int)
                 if (operator === '*') {
@@ -545,14 +575,28 @@ export class TypeMismatchRule extends BaseDiagnosticRule {
                         (leftIsNumericOrEnum && rightType === 'vector')) {
                         return results;
                     }
+                    
+                    // Vector-string multiplication: vector * "x y z"
+                    if (leftType === 'vector' && rightType === 'string' && this.isVectorLikeStringLiteral(node.right)) {
+                        return results;
+                    }
+                    if (leftType === 'string' && rightType === 'vector' && this.isVectorLikeStringLiteral(node.left)) {
+                        return results;
+                    }
                 }
 
                 // vector / scalar (scaling)
                 // Scalars can be numeric types (int, float) or enums (implicitly cast to int)
-                if (operator === '/' && leftType === 'vector') {
-                    const rightIsNumericOrEnum = this.isNumericType(rightType) || this.isIntegerOrEnumType(rightType, context);
-                    if (rightIsNumericOrEnum) {
-                        return results;
+                if (operator === '/') {
+                    if (leftType === 'vector') {
+                        const rightIsNumericOrEnum = this.isNumericType(rightType) || this.isIntegerOrEnumType(rightType, context);
+                        if (rightIsNumericOrEnum) {
+                            return results;
+                        }
+                        // Vector-string division: vector / "x y z"
+                        if (rightType === 'string' && this.isVectorLikeStringLiteral(node.right)) {
+                            return results;
+                        }
                     }
                 }
 
@@ -674,7 +718,7 @@ export class TypeMismatchRule extends BaseDiagnosticRule {
                 }
 
                 // Check if types are compatible
-                if (!this.isTypeCompatible(paramType, argType, context)) {
+                if (!this.isTypeCompatible(paramType, argType, context, arg)) {
                     allMatch = false;
                     break;
                 }
@@ -717,7 +761,8 @@ export class TypeMismatchRule extends BaseDiagnosticRule {
     private isTypeCompatible(
         targetType: string | null,
         sourceType: string | null,
-        context: DiagnosticRuleContext
+        context: DiagnosticRuleContext,
+        sourceExpr?: Expression
     ): boolean {
         if (!targetType || !sourceType) {
             return true;
@@ -743,9 +788,13 @@ export class TypeMismatchRule extends BaseDiagnosticRule {
             return normalizedTarget === normalizedSource;
         }
 
-        // Special case: vector can accept string (parsed as "x y z")
+        // Special case: vector can accept vector-like string literals (parsed as "x y z")
+        // Only allow if the source is actually a vector-like string literal
         if (normalizedTarget === 'vector' && normalizedSource === 'string') {
-            return true;
+            if (sourceExpr && this.isVectorLikeStringLiteral(sourceExpr)) {
+                return true;
+            }
+            return false;
         }
 
         // Special case: enums can accept int (for bitwise operations and direct assignment)

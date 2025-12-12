@@ -27,6 +27,7 @@ export {
     Declaration,
     Statement,
     Expression,
+    Literal,
     ParameterDeclNode,
     BlockStatement,
     MethodDeclNode,
