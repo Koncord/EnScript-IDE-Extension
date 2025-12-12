@@ -475,8 +475,15 @@ export async function findMemberInClassHierarchy(
             if (currentClass.baseClass && context.typeResolver) {
                 const baseClassName = extractTypeName(currentClass.baseClass);
                 if (baseClassName) {
+                    // Resolve typedef to actual class name if needed (e.g., "InventoryItemSuper" -> "ItemBase")
+                    let resolvedBaseClassName = baseClassName;
+                    const typedefResolved = context.typeResolver.resolveTypedefToClassName(baseClassName);
+                    if (typedefResolved) {
+                        resolvedBaseClassName = typedefResolved;
+                    }
+                    
                     // Load base class with stub detection (will reload from include paths if stubbed)
-                    const baseDefs = await tryLoadClassFromIncludes(baseClassName, context);
+                    const baseDefs = await tryLoadClassFromIncludes(resolvedBaseClassName, context);
                     if (baseDefs.length > 0) {
                         const mergedBaseDef = mergeClassDefinitions(baseDefs);
                         if (mergedBaseDef) {
@@ -851,12 +858,13 @@ export function isClassDerivedFrom(
         }
 
         for (const classDef of sourceClassDefs) {
-            if (checkInheritanceChain(classDef, targetClass, context, new Set())) {
+            const result = checkInheritanceChain(classDef, targetClass, context, new Set());
+            if (result) {
                 return true;
             }
         }
     } catch (error) {
-        Logger.debug(`isClassDerivedFrom: Error checking class inheritance: ${error}`);
+        Logger.debug(`Error checking class inheritance: ${error}`);
     }
 
     return false;
@@ -890,11 +898,8 @@ export function checkInheritanceChain(
     // Check if this is a modded class (modded classes don't have baseClass)
     const isModdedClass = classDef.modifiers?.includes('modded') || false;
     if (isModdedClass) {
-        Logger.debug(`checkInheritanceChain: Found modded class '${classDef.name}', looking for original definition`);
         const originalClassDefs = context.typeResolver.findAllClassDefinitions(classDef.name);
         const nonModdedDefs = originalClassDefs.filter(def => !def.modifiers?.includes('modded'));
-        
-        Logger.debug(`checkInheritanceChain: Found ${nonModdedDefs.length} non-modded definitions for '${classDef.name}'`);        
 
         for (const originalDef of nonModdedDefs) {
             const newVisited = new Set(visited);
@@ -905,7 +910,6 @@ export function checkInheritanceChain(
             }
         }
 
-        Logger.debug(`checkInheritanceChain: No original class found for modded class '${classDef.name}' - assuming inheritance is valid to avoid false positives`);
         return true;
     }
 
@@ -935,13 +939,18 @@ export function checkInheritanceChain(
     }
 
     const baseClassDefs = context.typeResolver.findAllClassDefinitions(resolvedBaseClassName);
-    for (const baseClassDef of baseClassDefs) {
-        if (checkInheritanceChain(baseClassDef, targetClass, context, visited)) {
-            return true;
-        }
+    
+    if (baseClassDefs.length === 0) {
+        return false;
     }
-
-    return false;
+    
+    // Merge multiple definitions to get the best one (prefer non-stub with explicit base class)
+    const mergedBaseDef = baseClassDefs.length === 1 ? baseClassDefs[0] : mergeClassDefinitions(baseClassDefs);
+    if (!mergedBaseDef) {
+        return false;
+    }
+    
+    return checkInheritanceChain(mergedBaseDef, targetClass, context, visited);
 }
 
 /**

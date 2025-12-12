@@ -414,9 +414,17 @@ export function mergeClassDefinitions(classDefinitions: ClassDeclNode[]): ClassD
     Logger.info(`🔄 Merging ${classDefinitions.length} class definitions for ${classDefinitions[0].name}`);
 
     // Find the best base class to use for the merged result
-    // Prefer: 1) non-modded class, 2) class with baseClass defined, 3) first class
-    const baseClass = classDefinitions.find(c => !c.modifiers.includes('modded'))
-        || classDefinitions.find(c => c.baseClass != null)
+    // Prefer classes with explicit (non-implicit) base classes to avoid using stub definitions
+    // Priority: 1) non-modded with explicit base (not just "Class"), 2) any with explicit base, 3) non-modded, 4) first class
+    const getBaseClassName = (c: ClassDeclNode): string | null => {
+        if (!c.baseClass) return null;
+        return extractTypeName(c.baseClass);
+    };
+
+    const baseClass = 
+        classDefinitions.find(c => !c.modifiers.includes('modded') && getBaseClassName(c) && getBaseClassName(c) !== 'Class')
+        || classDefinitions.find(c => getBaseClassName(c) && getBaseClassName(c) !== 'Class')
+        || classDefinitions.find(c => !c.modifiers.includes('modded'))
         || classDefinitions[0];
 
     const mergedMembers = new Map<string, Declaration>();
