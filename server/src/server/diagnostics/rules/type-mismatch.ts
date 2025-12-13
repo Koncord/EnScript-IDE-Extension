@@ -768,8 +768,20 @@ export class TypeMismatchRule extends BaseDiagnosticRule {
             return true;
         }
 
-        const normalizedTarget = normalizeTypeName(targetType);
-        const normalizedSource = normalizeTypeName(sourceType);
+        let normalizedTarget = normalizeTypeName(targetType);
+        let normalizedSource = normalizeTypeName(sourceType);
+
+        // Resolve typedefs to their underlying types
+        if (context.typeResolver) {
+            const resolvedTarget = context.typeResolver.resolveTypedefToFullType(normalizedTarget);
+            if (resolvedTarget) {
+                normalizedTarget = resolvedTarget;
+            }
+            const resolvedSource = context.typeResolver.resolveTypedefToFullType(normalizedSource);
+            if (resolvedSource) {
+                normalizedSource = resolvedSource;
+            }
+        }
 
         if (normalizedTarget === normalizedSource) {
             return true;
