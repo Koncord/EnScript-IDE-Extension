@@ -105,7 +105,7 @@ export function registerBuiltInRules(registry: DiagnosticRuleRegistry): void {
     });
 
     registry.register(new VariableShadowingRule(), {
-        priority: 85 // Warning rule, run after critical checks
+        priority: 90 // Checks both shadowing (warnings) and redeclarations (errors)
     });
 
     registry.register(new MissingOverrideRule(), {

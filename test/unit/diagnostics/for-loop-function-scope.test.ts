@@ -1,8 +1,10 @@
 import { UndeclaredVariableRule } from '../../../server/src/server/diagnostics/rules/undeclared-variable';
+import { VariableShadowingRule } from '../../../server/src/server/diagnostics/rules/variable-shadowing';
 import {
     setupDiagnosticTestContainer,
     runDiagnosticRule,
     expectNoDiagnosticWithMessage,
+    expectDiagnosticWithMessage,
     DiagnosticTestContext
 } from '../../test-helpers/diagnostic-test-helper';
 
@@ -45,9 +47,7 @@ class MyTestClass {
         expectNoDiagnosticWithMessage(results, 'Cannot find name \'i\'');
     });
 
-    // TODO: This should fail in the future when we implement variable shadowing/redeclaration detection
-    // Since for loop variables are function-scoped, declaring 'int i' twice is a redeclaration error
-    it.skip('should detect redeclaration in nested for loops with same variable name', async () => {
+    it('should detect redeclaration in nested for loops with same variable name', async () => {
         const code = `
 class MyTestClass {
     void TestMethod() {
@@ -59,11 +59,13 @@ class MyTestClass {
     }
 }`;
 
-        const results = await runDiagnosticRule(rule, code, testContext);
+        // Use the shadowing rule which also checks redeclarations - for loop variables are function-scoped
+        const redeclRule = new VariableShadowingRule();
+        const results = await runDiagnosticRule(redeclRule, code, testContext);
 
-        // Should have redeclaration error (not undeclared-variable)
-        // This is a different diagnostic rule that doesn't exist yet
-        expect(results).toHaveLength(0); // Placeholder - will need redeclaration rule
+        // Should have redeclaration error since both 'i' are in function scope
+        expect(results).toHaveLength(1);
+        expectDiagnosticWithMessage(results, "Variable 'i' is already declared in this scope");
     });
 
     it('should allow for loop variable with comma-separated declarations', async () => {
