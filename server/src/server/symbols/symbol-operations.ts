@@ -151,20 +151,28 @@ export class SymbolOperations implements ISymbolOperations {
 
                 // Check if it's a generic type parameter or auto
                 if (this.isGenericTypeParameter(declaredType) || declaredType === 'auto') {
-                    // Get the AST at the hover position to find what's actually being used
                     const currentUri = normalizeUri(doc.uri);
                     const currentAst = this.cacheManager.getDocCache().get(currentUri);
 
                     if (currentAst) {
-                        // Find the expression at the cursor position and resolve its type
-                        const expr = this.findExpressionAtPosition(currentAst, position);
-                        if (expr) {
-                            const inferredType = this.typeResolver.resolveExpressionType(expr, currentAst, doc);
+                        let inferredType: string | null = null;
 
-                            if (inferredType && inferredType !== declaredType && !this.isGenericTypeParameter(inferredType)) {
-                                // Add inferred type information
-                                formatted += `\n\n*Inferred type:* \`${inferredType}\``;
+                        // First try: if it's a VarDecl with auto type, use TypeResolver directly
+                        if (declaredType === 'auto' && isVarDecl(symbol)) {
+                            inferredType = this.typeResolver.resolveObjectType(symbol.name, doc, position);
+                        }
+
+                        // Second try: find the expression at the cursor position
+                        if (!inferredType) {
+                            const expr = this.findExpressionAtPosition(currentAst, position);
+                            if (expr) {
+                                inferredType = this.typeResolver.resolveExpressionType(expr, currentAst, doc);
                             }
+                        }
+
+                        if (inferredType && inferredType !== declaredType && !this.isGenericTypeParameter(inferredType)) {
+                            // Add inferred type information
+                            formatted += `\n\n*Inferred type:* \`${inferredType}\``;
                         }
                     }
                 }
