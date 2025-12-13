@@ -368,31 +368,30 @@ class IdentifierFilterVisitor extends BaseASTVisitor<void> {
         this.exitBlockScope();
     }
 
-    // Handle for statements (add loop variable to scope)
+    // Handle for statements
+    // NOTE: In EnScript (like C), for loop variables are function-scoped, NOT block-scoped
+    // Example: for (int i = 0; ...) {} - 'i' is accessible after the loop
     protected visitForStatement(node: ForStatement): void {
-        this.enterBlockScope();
-
-        // Visit initializer (may contain variable declaration)
+        // Visit initializer BEFORE entering block scope
+        // This adds for loop variables to the parent (function) scope
         if (node.init) {
             this.visit(node.init as ASTNode);
         }
 
-        // Visit condition
+        // Visit condition (may reference loop variable)
         if (node.test) {
             this.visit(node.test as ASTNode);
         }
 
-        // Visit update
+        // Visit update (may reference loop variable)
         if (node.update) {
             this.visit(node.update as ASTNode);
         }
 
-        // Visit body
+        // Visit body (create block scope for body-local variables only)
         if (node.body) {
             this.visit(node.body as ASTNode);
         }
-
-        this.exitBlockScope();
     }
 
     // Handle switch statements (entire switch body is one scope)
