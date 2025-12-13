@@ -91,4 +91,11 @@ export interface ITypeResolver {
      * E.g., "InventoryItemSuper" -> "ItemBase"
      */
     resolveTypedefToClassName(typedefName: string): string | null;
+
+    /**
+     * Resolve typedef to its full underlying type including generic arguments
+     * E.g., "TestMap" (typedef TestGeneric<int, ref TestItem> TestMap) -> "TestGeneric<int,ref TestItem>"
+     * This preserves the complete type information for member access resolution
+     */
+    resolveTypedefToFullType(typedefName: string): string | null;
 }

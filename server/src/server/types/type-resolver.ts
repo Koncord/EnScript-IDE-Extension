@@ -1912,7 +1912,7 @@ export class TypeResolver implements ITypeResolver {
      * E.g., "TestParams" (typedef Param2<string, string> TestParams) -> "Param2<string,string>"
      * This preserves the complete type information for member access resolution
      */
-    private resolveTypedefToFullType(typeName: string): string | null {
+    resolveTypedefToFullType(typeName: string): string | null {
         const typedefs = this.findAllTypedefDefinitions(typeName);
         if (typedefs.length === 0) {
             return null;

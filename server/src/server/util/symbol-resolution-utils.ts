@@ -706,8 +706,16 @@ export async function resolveMethodReturnType(
         return null;
     }
 
+    // Check if className is a typedef - if so, resolve it to the underlying type
+    // This handles cases like: typedef TestGeneric<int, ref TestItem> TestMap
+    // where TestMap needs to resolve to TestGeneric<int, ref TestItem>
+    const resolvedClassName = context.typeResolver.resolveTypedefToFullType(className) || className;
+    if (resolvedClassName !== className) {
+        Logger.debug(`🔄 Resolved typedef: ${className} -> ${resolvedClassName}`);
+    }
+    
     // Parse generic arguments from className (e.g., "array<ref Param2<int,int>>" -> baseType: "array", args: ["ref Param2<int,int>"])
-    const genericInfo = parseGenericType(className);
+    const genericInfo = parseGenericType(resolvedClassName);
     const baseClassName = genericInfo.baseType;
     const genericArgs = genericInfo.typeArguments;
 
@@ -758,8 +766,8 @@ export async function resolveMethodReturnType(
 
             // Apply generic type substitution if needed
             if (genericArgs.length > 0) {
-                Logger.debug(`🔍 Applying generic substitution for method '${methodName}' on '${className}'`);
-                const substitutedMembers = applyGenericSubstitution([member], className, classDef);
+                Logger.debug(`🔍 Applying generic substitution for method '${methodName}' on '${resolvedClassName}'`);
+                const substitutedMembers = applyGenericSubstitution([member], resolvedClassName, classDef);
                 const substitutedMember = substitutedMembers[0];
                 if (substitutedMember && isMethod(substitutedMember)) {
                     const returnType = substitutedMember.returnType ? extractTypeName(substitutedMember.returnType) : null;
