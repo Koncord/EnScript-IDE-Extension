@@ -810,6 +810,17 @@ export class TypeResolver implements ITypeResolver {
             }
         }
 
+        // Special handling for foreach variables with auto type
+        if (doc) {
+            const foreachType = this.tryResolveForeachVariableType(varNode, doc);
+            if (foreachType) {
+                if (this.enableDetailedLogging) {
+                    Logger.debug(`🎯 TypeResolver: Foreach auto type resolved to: ${foreachType}`);
+                }
+                return foreachType;
+            }
+        }
+
         // Try AST-based auto resolution if we have document context
         if (doc) {
             const astBasedType = this.tryResolveAutoFromAST(varNode, doc);
@@ -822,6 +833,130 @@ export class TypeResolver implements ITypeResolver {
         }
 
         Logger.warn(`⚠️ TypeResolver: Auto type inference failed for variable: ${varNode.name}`);
+        return null;
+    }
+
+    /**
+     * Try to resolve foreach variable type from the iterable
+     */
+    private tryResolveForeachVariableType(varNode: VarDeclNode, doc: TextDocument): string | null {
+        // Find the containing function/method
+        const containingFunction = findContainingFunctionOrMethod(varNode);
+        if (!containingFunction || !isBlockStatement(containingFunction.body)) {
+            return null;
+        }
+        
+        // Search for ForEachStatement in the function body that contains this variable
+        const foreachStmt = this.findForeachStatementWithVariable(containingFunction.body, varNode.name, doc, varNode.start);
+        if (!foreachStmt) {
+            return null;
+        }
+        
+        // Find the index of this variable in the foreach variables array
+        const varIndex = foreachStmt.variables.findIndex(v => v.name === varNode.name);
+        if (varIndex < 0) {
+            return null;
+        }
+        
+        // Resolve the type of the iterable expression
+        const ast = this.ensureDocumentParsed(doc);
+        let iterableType = this.resolveExpressionType(foreachStmt.iterable, ast, doc);
+        
+        if (!iterableType) {
+            return null;
+        }
+        
+        // Resolve typedef to the underlying type if necessary
+        iterableType = this.resolveTypedefToFullType(iterableType) || iterableType;
+        
+        // Extract element type from generic container types
+        const elementType = this.extractElementTypeFromIterable(iterableType, varIndex);
+        if (elementType && this.enableDetailedLogging) {
+            Logger.debug(`🎯 TypeResolver: Resolved foreach variable "${varNode.name}" (index ${varIndex}) from iterable type "${iterableType}" to element type "${elementType}"`);
+        }
+        
+        return elementType;
+    }
+    
+    /**
+     * Find a ForEachStatement that declares the given variable name
+     * Searches recursively through block statements
+     */
+    private findForeachStatementWithVariable(
+        block: BlockStatement, 
+        varName: string,
+        doc: TextDocument,
+        varPosition?: Position
+    ): import('../ast/node-types').ForEachStatement | null {
+        for (const stmt of block.body) {
+            if (isForEachStatement(stmt)) {
+                // Check if this foreach declares a variable with the given name
+                const hasVar = stmt.variables.some(v => v.name === varName);
+                if (hasVar) {
+                    // If we have a position, verify the variable is in scope
+                    if (varPosition) {
+                        // Check if the position is within or after the foreach statement
+                        const foreachEnd = stmt.end;
+                        const isAfterOrIn = foreachEnd.line > varPosition.line ||
+                            (foreachEnd.line === varPosition.line && foreachEnd.character >= varPosition.character);
+                        if (isAfterOrIn) {
+                            return stmt;
+                        }
+                    } else {
+                        return stmt;
+                    }
+                }
+                
+                // Recursively search the foreach body
+                if (isBlockStatement(stmt.body)) {
+                    const nested = this.findForeachStatementWithVariable(stmt.body, varName, doc, varPosition);
+                    if (nested) {
+                        return nested;
+                    }
+                }
+            }
+            
+            // Recursively search nested blocks
+            if (isBlockStatement(stmt)) {
+                const nested = this.findForeachStatementWithVariable(stmt, varName, doc, varPosition);
+                if (nested) {
+                    return nested;
+                }
+            }
+        }
+        
+        return null;
+    }
+
+    /**
+     * Extract element type from iterable container types
+     * This is a pragmatic hack for known container types (array, set, map)
+     * 
+     * @param iterableType The container type (e.g., "array<PlayerIdentity>", "map<string, int>")
+     * @param variableIndex The index of the foreach variable (0 for first, 1 for second)
+     * @returns The type of the element at the given index, or null if not applicable
+     */
+    private extractElementTypeFromIterable(iterableType: string, variableIndex: number): string | null {
+        // Parse generic type using existing utility
+        const parsed = parseGenericType(iterableType);
+        if (!parsed || !parsed.typeArguments || parsed.typeArguments.length === 0) {
+            return null;
+        }
+
+        // For array<T>, set<T>: single variable iterates over T
+        if (parsed.baseType === 'array' || parsed.baseType === 'set') {
+            if (variableIndex === 0 && parsed.typeArguments.length > 0) {
+                return parsed.typeArguments[0];
+            }
+        }
+
+        // For map<K, V>: first variable is K, second variable is V
+        if (parsed.baseType === 'map') {
+            if (variableIndex < parsed.typeArguments.length) {
+                return parsed.typeArguments[variableIndex];
+            }
+        }
+        
         return null;
     }
 
