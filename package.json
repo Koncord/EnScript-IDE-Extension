@@ -49,7 +49,7 @@
         "@vscode/debugadapter": "^1.68.0",
         "@vscode/debugprotocol": "^1.68.0",
         "esbuild": "^0.27.1",
-        "eslint": "^9.39.1",
+        "eslint": "^9.39.2",
         "globals": "^16.5.0",
         "jest": "^30.2.0",
         "jiti": "^2.6.1",
