@@ -61,36 +61,6 @@ export class Analyzer implements IAnalyzer {
     // ============================================================================
 
     /**
-     * Dump all classes for debugging
-     */
-    public dumpClasses(): unknown[] {
-        const classes: unknown[] = [];
-        
-        for (const [uri, ast] of this.cacheManager.getDocCache().entries()) {
-            for (const decl of ast.body) {
-                if (isClass(decl)) {
-                    classes.push({
-                        name: decl.name,
-                        uri,
-                        baseClass: decl.baseClass ? 
-                            (isTypeReference(decl.baseClass) ? decl.baseClass.name : 'unknown') : 
-                            null,
-                        modifiers: decl.modifiers,
-                        memberCount: decl.members.length,
-                        position: {
-                            line: decl.start.line,
-                            character: decl.start.character
-                        }
-                    });
-                }
-            }
-        }
-
-        Logger.debug(`dumpClasses: Found ${classes.length} class(es)`);
-        return classes;
-    }
-
-    /**
      * Dump diagnostics for debugging
      */
     public dumpDiagnostics(): unknown[] {

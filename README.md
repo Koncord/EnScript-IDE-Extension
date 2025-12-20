@@ -38,5 +38,4 @@ Quickly find and navigate to any symbol in your workspace with fast, fuzzy symbo
 - **Enscript: Restart Language Server** — Instantly restarts the Enscript language server for troubleshooting or updates.
 - **Enscript: Refresh File Index** — Re-indexes your workspace files for up-to-date symbol search and completions.
 - **Enscript: Dump Diagnostics** — Outputs all current diagnostics for your project to help with debugging.
-- **Enscript: Dump Indexed Classes** — Lists all classes indexed by the extension for quick inspection.
 - **Enscript: Show Rule Documentation** — Displays documentation for the selected rule directly in VS Code.

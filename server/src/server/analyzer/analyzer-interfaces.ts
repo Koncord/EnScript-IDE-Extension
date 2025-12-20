@@ -13,11 +13,6 @@ export interface IAnalyzer {
     getCompletions(doc: TextDocument, position: Position): Promise<CompletionItem[]>;
 
     /**
-     * Dump all classes for debugging
-     */
-    dumpClasses(): unknown[];
-
-    /**
      * Dump diagnostics for debugging
      */
     dumpDiagnostics(): unknown[];

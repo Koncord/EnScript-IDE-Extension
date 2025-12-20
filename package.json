@@ -112,10 +112,6 @@
                 "title": "Enscript: Dump Diagnostics"
             },
             {
-                "command": "enscript.dumpClasses",
-                "title": "Enscript: Dump Indexed Classes"
-            },
-            {
                 "command": "enscript.refreshProjectDependencies",
                 "title": "Enscript: Refresh Project Dependencies"
             },
@@ -430,7 +426,9 @@
             {
                 "type": "enscript",
                 "label": "EnScript Debug",
-                "languages": ["enscript"],
+                "languages": [
+                    "enscript"
+                ],
                 "configurationAttributes": {
                     "launch": {
                         "required": [],
@@ -438,7 +436,10 @@
                             "ports": {
                                 "type": "array",
                                 "description": "TCP ports to listen on for DayZ debug connections",
-                                "default": [1000, 1001],
+                                "default": [
+                                    1000,
+                                    1001
+                                ],
                                 "items": {
                                     "type": "number"
                                 }
@@ -451,7 +452,10 @@
                             "ports": {
                                 "type": "array",
                                 "description": "TCP ports to connect to for DayZ debug",
-                                "default": [1000, 1001],
+                                "default": [
+                                    1000,
+                                    1001
+                                ],
                                 "items": {
                                     "type": "number"
                                 }
@@ -464,7 +468,10 @@
                         "type": "enscript",
                         "request": "attach",
                         "name": "Attach to DayZ",
-                        "ports": [1000, 1001]
+                        "ports": [
+                            1000,
+                            1001
+                        ]
                     }
                 ],
                 "configurationSnippets": [
@@ -475,7 +482,10 @@
                             "type": "enscript",
                             "request": "attach",
                             "name": "Attach to DayZ",
-                            "ports": [1000, 1001]
+                            "ports": [
+                                1000,
+                                1001
+                            ]
                         }
                     }
                 ]

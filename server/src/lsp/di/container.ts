@@ -17,7 +17,6 @@ import { WorkspaceSymbolHandler } from '../handlers/workspaceSymbol';
 import { DocumentSymbolHandler } from '../handlers/documentSymbol';
 import { DiagnosticsHandler } from '../handlers/diagnostics';
 import { DumpDiagnosticsHandler } from '../handlers/dumpDiagnostics';
-import { DumpClassesHandler } from '../handlers/dumpClasses';
 import { ProjectFileHandler } from '../handlers/projectFile';
 import { CodeActionsHandler } from '../handlers/codeActions';
 import { IHandlerRegistration, HANDLER_TYPES } from '../handlers/handler-interfaces';
@@ -50,7 +49,6 @@ export function configureServerContainer(
     container.bind<IHandlerRegistration>(HANDLER_TYPES.IHandlerRegistration).to(WorkspaceSymbolHandler).inTransientScope();
     container.bind<IHandlerRegistration>(HANDLER_TYPES.IHandlerRegistration).to(DocumentSymbolHandler).inTransientScope();
     container.bind<IHandlerRegistration>(HANDLER_TYPES.IHandlerRegistration).to(DumpDiagnosticsHandler).inTransientScope();
-    container.bind<IHandlerRegistration>(HANDLER_TYPES.IHandlerRegistration).to(DumpClassesHandler).inTransientScope();
     container.bind<IHandlerRegistration>(HANDLER_TYPES.IHandlerRegistration).to(ProjectFileHandler).inTransientScope();
     container.bind<IHandlerRegistration>(HANDLER_TYPES.IHandlerRegistration).to(CodeActionsHandler).inTransientScope();
 }
