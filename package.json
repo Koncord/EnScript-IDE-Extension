@@ -30,6 +30,7 @@
         "publish": "npm run compile:prod && vsce publish"
     },
     "dependencies": {
+        "diff-match-patch": "^1.0.5",
         "inversify": "^7.10.6",
         "marked": "^17.0.1",
         "reflect-metadata": "^0.2.2",
@@ -394,6 +395,44 @@
                             }
                         }
                     }
+                },
+                "enscript.formatting.astylePath": {
+                    "type": "string",
+                    "default": "astyle",
+                    "markdownDescription": "Path to the Astyle executable.\n\nWindows: Download binary from [SourceForge](https://sourceforge.net/projects/astyle/files/latest/download).\nLinux: Run `sudo apt-get install astyle`.\nmacOS: Run `brew install astyle`."
+                },
+                "enscript.formatting.astyleRcPath": {
+                    "type": "string",
+                    "default": "${workspaceFolder}/.astylerc",
+                    "description": "Path to the .astylerc configuration file."
+                },
+                "enscript.formatting.arguments": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "default": [
+                        "--style=kr",
+                        "--indent=tab",
+                        "--indent-preproc-block",
+                        "--indent-preproc-define",
+                        "--indent-col1-comments",
+                        "--pad-oper",
+                        "--pad-comma",
+                        "--pad-header",
+                        "--unpad-brackets",
+                        "--unpad-paren",
+                        "--align-pointer=name",
+                        "--align-reference=name",
+                        "--keep-one-line-blocks",
+                        "--keep-one-line-statements",
+                        "--squeeze-lines=2",
+                        "--squeeze-ws",
+                        "--remove-braces",
+                        "--remove-comment-prefix",
+                        "--lineend=linux"
+                    ],
+                    "description": "Arguments passed to Astyle. These defaults replicate the standard EnforceScript formatting style."
                 },
                 "enscript.logging.level": {
                     "type": "string",
