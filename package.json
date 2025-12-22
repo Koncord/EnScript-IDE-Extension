@@ -45,7 +45,7 @@
         "@types/node": "^25.0.3",
         "@types/vscode": "^1.107.0",
         "@typescript-eslint/eslint-plugin": "^8.46.3",
-        "@typescript-eslint/parser": "^8.46.3",
+        "@typescript-eslint/parser": "^8.50.0",
         "@vscode/debugadapter": "^1.68.0",
         "@vscode/debugprotocol": "^1.68.0",
         "esbuild": "^0.27.1",
