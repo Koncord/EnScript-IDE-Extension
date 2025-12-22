@@ -18,8 +18,8 @@
         "url": "https://github.com/koncord/enscript-ide-extension"
     },
     "scripts": {
-        "compile": "npm run check-types && node esbuild.js",
-        "compile:prod": "npm run check-types && node esbuild.js --production",
+        "compile": "npm run check-types && npm run build-grammar && node esbuild.js",
+        "compile:prod": "npm run check-types && npm run build-grammar && node esbuild.js --production",
         "check-types": "tsc --noEmit -p . && tsc --noEmit -p server",
         "watch": "node esbuild.js --watch",
         "lint": "eslint server/src --ext .ts",
@@ -27,7 +27,8 @@
         "test": "jest",
         "clean": "rimraf --glob out server/out **/*.tsbuildinfo",
         "package": "npm run compile:prod && vsce package",
-        "publish": "npm run compile:prod && vsce publish"
+        "publish": "npm run compile:prod && vsce publish",
+        "build-grammar": "js-yaml syntaxes/enscript.yaml > syntaxes/enscript.tmLanguage.json"
     },
     "dependencies": {
         "inversify": "^7.10.6",
@@ -53,6 +54,7 @@
         "globals": "^16.5.0",
         "jest": "^30.2.0",
         "jiti": "^2.6.1",
+        "js-yaml": "^4.1.1",
         "rimraf": "^6.1.2",
         "ts-jest": "^29.4.5",
         "typescript": "^5.9.3",
