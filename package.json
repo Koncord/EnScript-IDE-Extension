@@ -399,7 +399,7 @@
                 "enscript.formatting.astylePath": {
                     "type": "string",
                     "default": "astyle",
-                    "markdownDescription": "Path to the Astyle executable.\n\nWindows: Download binary from [SourceForge](https://sourceforge.net/projects/astyle/files/latest/download).\nLinux: Run `sudo apt-get install astyle`.\nmacOS: Run `brew install astyle`."
+                    "markdownDescription": "Path to the Astyle executable.\n\n* Windows: Download binary from [SourceForge](https://sourceforge.net/projects/astyle/files/latest/download).\n* Linux: Run `sudo apt-get install astyle`.\n* macOS: Run `brew install astyle`."
                 },
                 "enscript.formatting.astyleRcPath": {
                     "type": "string",
