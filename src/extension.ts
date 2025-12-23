@@ -7,6 +7,8 @@ import { ProjectCommands } from './commands/project-commands';
 import { ReplCommands } from './commands/repl-commands';
 import { IncludePathsManager } from './include-paths-manager';
 import { configureDayZTools, showFirstTimeSetup } from './dayz-tools-finder';
+
+import { registerPreprocessorFeatures } from './preprocessor';
 import { registerFormatter } from './formatter';
 import { EnScriptDebugAdapterDescriptorFactory, EnScriptDebugConfigurationProvider } from './debug/debug-adapter-factory';
 
@@ -14,6 +16,9 @@ let clientManager: LanguageClientManager | undefined;
 let includePathsManager: IncludePathsManager | undefined;
 
 export async function activate(context: vscode.ExtensionContext) {
+
+    // Initialize Preprocessor Features (Folding & Rainbow #ifdefs)
+    registerPreprocessorFeatures(context);
     // Initialize Formatter
     registerFormatter(context);
 
