@@ -33,6 +33,14 @@ Intelligent hover tooltips display type information and documentation. Use Ctrl+
 ### 5. **Workspace Symbol Search**
 Quickly find and navigate to any symbol in your workspace with fast, fuzzy symbol search. Locate classes, methods, and variables instantly.
 
+### 6. **Code Formatting**
+
+Integrated support for code formatting via **Artistic Style (AStyle)**. Automatically format your code on save or manually using standard VS Code commands (`Shift + Alt + F`).
+
+- Supports standard DayZ coding style conventions out of the box.
+- Fully compatible with custom `.astylerc` configuration files.
+- **Requirement:** You need to download the AStyle binary separately. [Download AStyle here](https://sourceforge.net/projects/astyle/files/latest/download).
+
 ### 6. Command Palette (`Ctrl+Shift+P`)
 
 - **Enscript: Restart Language Server** — Instantly restarts the Enscript language server for troubleshooting or updates.
