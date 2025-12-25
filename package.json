@@ -225,7 +225,7 @@
                 "enscript.preprocessorDefinitions": {
                     "type": "array",
                     "default": [],
-                    "description": "Preprocessor symbols to define (e.g. DEBUG, GAME_TEMPLATE, FEATURE_FLAG)",
+                    "description": "Preprocessor symbols to define (e.g. DEBUG, GAME_TEMPLATE, FEATURE_FLAG)\nPrefix with '!' (e.g. !SERVER) to treat the symbol as ambiguous, forcing the parser to index BOTH the '#ifdef' and '#else' branches simultaneously.",
                     "items": {
                         "type": "string"
                     }

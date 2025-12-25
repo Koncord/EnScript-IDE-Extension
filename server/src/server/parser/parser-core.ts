@@ -51,6 +51,7 @@ type PreprocessorCondition = {
     type: 'ifdef' | 'ifndef' | 'if';
     symbol: string;
     isTrue: boolean;
+    isAmbiguous: boolean;
 };
 
 export class Parser {
@@ -58,6 +59,7 @@ export class Parser {
     private document: TextDocument;
     private config: ParserConfig;
     private preprocessorStack: PreprocessorCondition[] = [];
+    private ambiguousSymbols = new Set<string>();
     private definedSymbols = new Set<string>();
     private parseErrors: ParseError[] = [];
     private currentClassName: string | null = null; // Track the class being parsed for constructor/destructor detection
@@ -75,6 +77,9 @@ export class Parser {
         this.document = document;
         this.tokenStream = new TokenStream(tokens);
         this.config = config;
+
+        // Initialize ambiguous symbols
+        this.ambiguousSymbols = new Set(config.ambiguousDefinitions);
 
         // Initialize defined symbols from configuration
         this.definedSymbols = new Set(config.preprocessorDefinitions);
@@ -102,7 +107,7 @@ export class Parser {
         // Initialize recovery strategies
         const warningCallback = (message: string, line: number, character: number) => this.addWarningDiagnostic(message, line, character);
         const errorCallback = (message: string, line: number, character: number) => this.addParseError(message, line, character);
-        
+
         this.declarationRecovery = new DeclarationRecoveryStrategy(document, undefined, warningCallback, errorCallback);
         this.typeRecovery = new TypeRecoveryStrategy(document, undefined, warningCallback, errorCallback);
         this.preprocessorRecovery = new PreprocessorRecoveryStrategy(document, undefined, warningCallback, errorCallback);
@@ -398,7 +403,7 @@ export class Parser {
     private parseDeclaration(): Declaration[] {
         // Capture the start position BEFORE parsing annotations/modifiers
         const declStartPos = this.document.positionAt(this.tokenStream.peek().start);
-        
+
         // Parse in strict order: annotations first, then modifiers
         const annotations = this.parseAnnotations();
         const modifiers = this.parseModifiers();
@@ -557,7 +562,7 @@ export class Parser {
             } else {
                 body = this.statementParser.parseBlockStatement() as BlockStatement;
                 endPos = body.end;
-                
+
                 // Use visitor to collect all variable declarations from the function body
                 const collector = new VariableDeclarationCollector();
                 locals = collector.visit(body);
@@ -742,7 +747,7 @@ export class Parser {
         // Parse type
         const type = this.parseType();
 
-        // Parse variable name  
+        // Parse variable name
         const nameToken = this.expectIdentifier();
         // For this case, start from type position since we're already past any modifiers
         return this.createVariableDeclaration(modifiers, annotations, type, nameToken, type.start);
@@ -824,7 +829,7 @@ export class Parser {
                 name: typeToken.value,
                 modifiers: modifiers.length > 0 ? modifiers : undefined
             };
-            
+
             // Parse array dimensions for primitive types
             while (this.tokenStream.peek().value === '[') {
                 this.tokenStream.next(); // consume '['
@@ -845,7 +850,7 @@ export class Parser {
                     size
                 };
             }
-            
+
             return type;
         }
 
@@ -913,27 +918,27 @@ export class Parser {
         // This handles patterns like "private ref static Type"
         const currentPos = this.tokenStream.getPosition();
         let foundMoreModifiers = false;
-        
+
         // Skip over storage keywords
         while (this.tokenStream.peek().kind === TokenKind.KeywordStorage) {
             this.tokenStream.next();
         }
-        
+
         // Check if there are more modifiers after the storage keywords
         if (this.tokenStream.peek().kind === TokenKind.KeywordModifier) {
             foundMoreModifiers = true;
         }
-        
+
         // Reset to the position after initial modifiers
         this.tokenStream.setPosition(currentPos);
-        
+
         // If we found more modifiers, we need to consume them
         if (foundMoreModifiers) {
             // Skip past storage keywords and collect the additional modifiers
             while (this.tokenStream.peek().kind === TokenKind.KeywordStorage) {
                 this.tokenStream.next();
             }
-            
+
             // Collect the remaining modifiers
             while (isModifier(this.tokenStream.peek())) {
                 modifiers.push(this.tokenStream.next().value);
@@ -1106,7 +1111,7 @@ export class Parser {
                         this.parseErrors.push(error);
                     }
                 }
-                
+
                 // Skip to next comma or closing bracket
                 while (!this.tokenStream.eof() &&
                     this.tokenStream.peek().value !== ',' &&
@@ -1137,10 +1142,10 @@ export class Parser {
         // The >> should be split into two > tokens to close both generic levels
         if (this.tokenStream.peek().value === '>>') {
             const shiftToken = this.tokenStream.peek();
-            
+
             // Split >> into two > tokens (this is valid syntax, not an error)
             this.tokenStream.next(); // consume >>
-            
+
             // Create a synthetic > token and insert it back for the outer generic
             const syntheticToken: Token = {
                 kind: TokenKind.Operator,
@@ -1152,10 +1157,10 @@ export class Parser {
         } else if (this.tokenStream.peek().value !== '>') {
             // Missing '>' - try to recover based on context
             const nextToken = this.tokenStream.peek();
-            
+
             // Check if next token suggests we should close generics and continue
             // Common patterns: Type<T identifier, Type<T>, Type<T;, Type<T[
-            const shouldRecover = 
+            const shouldRecover =
                 nextToken.kind === TokenKind.Identifier ||  // array<int myVar
                 nextToken.value === ')' ||                    // func(array<int)
                 nextToken.value === ';' ||                    // array<int;
@@ -1163,7 +1168,7 @@ export class Parser {
                 nextToken.value === '[' ||                    // array<int[5]
                 nextToken.value === '=' ||                    // array<int = value
                 nextToken.kind === TokenKind.EOF;            // end of file
-            
+
             if (shouldRecover && this.config.errorRecovery) {
                 // Report the missing '>' error
                 const error = new ParseError(
@@ -1175,7 +1180,7 @@ export class Parser {
                 if (!this.shouldSuppressError(error)) {
                     this.parseErrors.push(error);
                 }
-                
+
                 // Don't consume the next token, just return - caller will handle it
                 return args;
             } else {
@@ -1186,7 +1191,7 @@ export class Parser {
             // Normal case: found '>'
             this.expectToken('>');
         }
-        
+
         return args;
     }
 
@@ -1285,7 +1290,7 @@ export class Parser {
                     if (this.config.debug) {
                         Logger.warn(`Infinite loop detected in class body parsing at position ${currentPosition}`);
                     }
-                    
+
                     // Skip to next potential member start or closing brace
                     this.skipToNextMember();
                     sameMemberCount = 0; // Reset counter after recovery
@@ -1322,41 +1327,41 @@ export class Parser {
                     if (!this.shouldSuppressError(error as ParseError)) {
                         this.parseErrors.push(error as ParseError);
                     }
-                    
+
                     // Try to recover by creating a minimal placeholder member and skipping
 
-                    
+
                     // In IDE mode, be more conservative with recovery
                     if (this.config.ideMode) {
                         // For IDE mode, try a more gentle recovery approach
                         // Skip only until we find a semicolon, closing brace, or what looks like a new member
                         while (!this.tokenStream.eof()) {
                             const token = this.tokenStream.peek();
-                            
+
                             // Stop at closing brace (end of class)
                             if (token.value === '}') {
                                 break;
                             }
-                            
+
                             // Stop at semicolon (likely end of problematic member)
                             if (token.value === ';') {
                                 this.tokenStream.next(); // consume the semicolon
                                 break;
                             }
-                            
+
                             // Stop if we see what looks like the start of a new member declaration
-                            if ((token.kind === TokenKind.Identifier || token.kind === TokenKind.KeywordType) && 
+                            if ((token.kind === TokenKind.Identifier || token.kind === TokenKind.KeywordType) &&
                                 this.looksLikeNewMemberStart()) {
                                 break;
                             }
-                            
+
                             this.tokenStream.next();
                         }
                     } else {
                         // More aggressive recovery - skip the problematic content
                         this.skipToNextMember();
                     }
-                    
+
                     // Continue parsing the next member
                     continue;
                 } else {
@@ -1381,7 +1386,7 @@ export class Parser {
     private parseClassMemberDeclaration(): Declaration[] {
         // Capture the start position BEFORE parsing annotations/modifiers
         const declStartPos = this.document.positionAt(this.tokenStream.peek().start);
-        
+
         // Parse in strict order: annotations first, then modifiers
         const annotations = this.parseAnnotations();
         const modifiers = this.parseModifiers();
@@ -1403,7 +1408,7 @@ export class Parser {
     private looksLikeNewMemberStart(): boolean {
         // Look ahead to see if this looks like a member declaration
         const saved = this.tokenStream.getPosition();
-        
+
         try {
             // Skip any modifiers
             while (this.tokenStream.peek().kind === TokenKind.Identifier) {
@@ -1414,7 +1419,7 @@ export class Parser {
                     break;
                 }
             }
-            
+
             // Check for type keywords or identifiers that suggest a member declaration
             const token = this.tokenStream.peek();
             const looksLikeMember = (
@@ -1422,7 +1427,7 @@ export class Parser {
                 (token.kind === TokenKind.Identifier && this.isValidTypeName(token.value)) ||
                 ['void', 'int', 'float', 'string', 'bool', 'auto'].includes(token.value)
             );
-            
+
             return looksLikeMember;
         } finally {
             this.tokenStream.setPosition(saved);
@@ -1434,7 +1439,7 @@ export class Parser {
      */
     private isValidTypeName(name: string): boolean {
         // Types typically start with uppercase or are known primitive/builtin types
-        return /^[A-Z][a-zA-Z0-9_]*$/.test(name) || 
+        return /^[A-Z][a-zA-Z0-9_]*$/.test(name) ||
                ['ref', 'array', 'map'].includes(name.toLowerCase());
     }
 
@@ -1442,10 +1447,10 @@ export class Parser {
         // Skip tokens until we find a potential start of next member or closing brace
         // Use balanced brace counting to avoid skipping past the end of method bodies
         let braceDepth = 0;
-        
+
         while (!this.tokenStream.eof()) {
             const token = this.tokenStream.peek();
-            
+
             // Track brace depth to handle nested blocks properly
             if (token.value === '{') {
                 braceDepth++;
@@ -1496,7 +1501,7 @@ export class Parser {
                     if (this.config.lenientSemicolons && this.shouldSuppressError(error)) {
                         // Create a minimal empty body and skip to recovery point
                         const startPos = this.document.positionAt(this.tokenStream.peek().start);
-                        
+
                         // Skip to the matching closing brace using balanced brace counting
                         this.skipToMatchingClosingBrace();
 
@@ -1641,61 +1646,61 @@ export class Parser {
         if (nextToken.value === '{') {
             // Save the position of the opening brace for recovery
             const openBracePosition = this.tokenStream.getPosition();
-            
 
-            
+
+
             try {
                 body = this.statementParser.parseBlockStatement() as BlockStatement;
                 endPos = body.end;
-                
+
                 // Validation: check if method body parsing left us in an unexpected position
                 const nextToken = this.tokenStream.peek();
-                
+
                 // If we encounter control flow keywords after method body parsing,
                 // it indicates that parseBlockStatement didn't consume the full method body
-                if (nextToken.kind === TokenKind.KeywordControl && 
+                if (nextToken.kind === TokenKind.KeywordControl &&
                     ['if', 'for', 'while', 'break', 'continue'].includes(nextToken.value)) {
                     throw new Error(`Incomplete method body parsing for '${nameToken.value}' - found control flow statement`);
                 }
-                
+
                 // Use visitor to collect all variable declarations from the method body
                 const collector = new VariableDeclarationCollector();
                 locals = collector.visit(body);
             } catch (error) {
                 // Enhanced error recovery for method body parsing - catch ALL errors, not just ParseError
 
-                
+
                 // Always report the error if it's a ParseError
                 if (error instanceof ParseError && !this.shouldSuppressError(error)) {
                     this.parseErrors.push(error);
                 }
-                
+
                 // Create a minimal empty body and skip to recovery point
                 const startPos = this.document.positionAt(nextToken.start);
-                
+
                 // Reset to the opening brace position and skip to matching closing brace
                 this.tokenStream.setPosition(openBracePosition);
                 this.tokenStream.next(); // Move past the opening brace
-                
 
-                
+
+
                 // Skip to the matching closing brace using balanced counting
                 this.skipToMatchingClosingBrace();
 
                 // Find the end position - should be at the closing brace now
                 const currentToken = this.tokenStream.peek();
-                
 
-                
+
+
                 if (currentToken.value === '}') {
                     // Consume the closing brace
                     const closingBrace = this.tokenStream.next();
                     endPos = this.document.positionAt(closingBrace.end);
-                    
+
 
                 } else {
                     endPos = this.document.positionAt(currentToken.start);
-                    
+
 
                 }
 
@@ -1706,7 +1711,7 @@ export class Parser {
                     end: endPos,
                     body: []
                 } as BlockStatement;
-                
+
                 // For non-ParseError exceptions, create a generic error report
                 if (!(error instanceof ParseError)) {
                     const genericError = new ParseError(
@@ -1721,7 +1726,7 @@ export class Parser {
                 }
             }
 
-            // Handle semicolon after method body block 
+            // Handle semicolon after method body block
             // This supports patterns like: void method(){code}; (common in EnScript)
             const afterBodyToken = this.tokenStream.peek();
             if (afterBodyToken.value === ';') {
@@ -1958,13 +1963,13 @@ export class Parser {
             const parameterModifiers: string[] = [];
             const validParameterModifiers = ['out', 'inout', 'notnull', 'ref', 'const', 'owned', 'local'];
 
-            while (isModifier(this.tokenStream.peek()) && 
+            while (isModifier(this.tokenStream.peek()) &&
                    validParameterModifiers.includes(this.tokenStream.peek().value)) {
                 parameterModifiers.push(this.tokenStream.next().value);
             }
-            
+
             // Handle any invalid modifiers
-            if (isModifier(this.tokenStream.peek()) && 
+            if (isModifier(this.tokenStream.peek()) &&
                 !validParameterModifiers.includes(this.tokenStream.peek().value)) {
                 const modifierToken = this.tokenStream.peek();
                 // Found a modifier, but not valid for parameters
@@ -2107,7 +2112,7 @@ export class Parser {
                 ['ref', 'reference', 'const', 'volatile', 'notnull', 'autoptr', 'out', 'inout', 'owned'].includes(this.tokenStream.peek().value)) {
                 this.tokenStream.next();
             }
-            
+
             const nextToken = this.tokenStream.peek();
             if (nextToken.kind === TokenKind.Identifier || nextToken.kind === TokenKind.KeywordType) {
                 this.tokenStream.next();
@@ -2117,7 +2122,7 @@ export class Parser {
                     this.skipGenericArguments();
                 }
 
-                // Skip array dimensions if present  
+                // Skip array dimensions if present
                 while (this.tokenStream.peek().value === '[') {
                     this.skipArrayDimension();
                 }
@@ -2178,16 +2183,49 @@ export class Parser {
 
         if (directive.startsWith('#ifdef ')) {
             const symbol = directive.substring(7).trim();
-            const isTrue = this.definedSymbols.has(symbol);
-            this.preprocessorStack.push({ type: 'ifdef', symbol, isTrue });
+
+            const isDefined = this.definedSymbols.has(symbol);
+            const isAmbiguous = this.ambiguousSymbols.has(symbol);
+
+            // If ambiguous, it's ALWAYS true for parsing purposes
+            const isTrue = isAmbiguous || isDefined;
+
+            this.preprocessorStack.push({
+                type: 'ifdef',
+                symbol,
+                isTrue,
+                isAmbiguous
+            });
+
         } else if (directive.startsWith('#ifndef ')) {
             const symbol = directive.substring(8).trim();
-            const isTrue = !this.definedSymbols.has(symbol);
-            this.preprocessorStack.push({ type: 'ifndef', symbol, isTrue });
+
+            const isDefined = this.definedSymbols.has(symbol);
+            const isAmbiguous = this.ambiguousSymbols.has(symbol);
+
+            // If ambiguous, #ifndef is treated as True (so we parse it)
+            // If not ambiguous, standard logic applies (!isDefined)
+            const isTrue = isAmbiguous || !isDefined;
+
+            this.preprocessorStack.push({
+                type: 'ifndef',
+                symbol,
+                isTrue,
+                isAmbiguous
+            });
+
         } else if (directive === '#else') {
             if (this.preprocessorStack.length > 0) {
                 const current = this.preprocessorStack[this.preprocessorStack.length - 1];
-                current.isTrue = !current.isTrue;
+
+                if (current.isAmbiguous) {
+                    // MAGIC: If the IF was ambiguous, the ELSE is also True.
+                    // We keep isTrue = true, so the parser continues reading this block too.
+                    current.isTrue = true;
+                } else {
+                    // Standard logic: flip the boolean
+                    current.isTrue = !current.isTrue;
+                }
             }
         } else if (directive === '#endif') {
             if (this.preprocessorStack.length > 0) {
@@ -2274,13 +2312,13 @@ export class Parser {
     private recoverFromError(strategy?: string, errorContext?: string): void {
         // Delegate to appropriate recovery strategy based on context
         const errorMessage = errorContext || 'parsing error';
-        
+
         if (strategy?.includes('declaration') || strategy?.includes('variable') || strategy?.includes('function')) {
             // Use declaration recovery strategy
             const result = this.declarationRecovery.handleVariableDeclarationError(this.tokenStream, errorMessage);
             this.applyDeclarationRecoveryResult(result);
         } else if (strategy?.includes('type')) {
-            // Use type recovery strategy  
+            // Use type recovery strategy
             const result = this.typeRecovery.handleBasicTypeError(this.tokenStream, errorMessage);
             this.applyTypeRecoveryResult(result);
         } else if (strategy?.includes('preprocessor') || strategy?.includes('define') || strategy?.includes('include')) {
@@ -2303,7 +2341,7 @@ export class Parser {
         if (result.syntheticToken) {
             this.tokenStream.insertToken(result.syntheticToken);
         }
-        
+
         if (result.recoveredPosition !== undefined) {
             this.tokenStream.setPosition(result.recoveredPosition);
         }
@@ -2316,7 +2354,7 @@ export class Parser {
         if (result.syntheticToken) {
             this.tokenStream.insertToken(result.syntheticToken);
         }
-        
+
         if (result.recoveredPosition !== undefined) {
             this.tokenStream.setPosition(result.recoveredPosition);
         }
@@ -2329,7 +2367,7 @@ export class Parser {
         if (result.syntheticToken) {
             this.tokenStream.insertToken(result.syntheticToken);
         }
-        
+
         if (result.recoveredPosition !== undefined) {
             this.tokenStream.setPosition(result.recoveredPosition);
         }
@@ -2352,23 +2390,23 @@ export class Parser {
      */
     private skipToMatchingClosingBrace(alreadyInside: boolean = true, moveBackToClosingBrace: boolean = true): void {
         let braceCount = alreadyInside ? 1 : 0;
-        
+
         // If not already inside, consume the opening brace if present
         if (!alreadyInside && this.tokenStream.peek().value === '{') {
             this.tokenStream.next();
             braceCount = 1;
         }
-        
+
         while (!this.tokenStream.eof() && braceCount > 0) {
             const token = this.tokenStream.next();
-            
+
             if (token.value === '{') {
                 braceCount++;
             } else if (token.value === '}') {
                 braceCount--;
             }
         }
-        
+
         // Move back one position so we're positioned at the closing brace (not after it)
         if (moveBackToClosingBrace && !this.tokenStream.eof()) {
             this.tokenStream.setPosition(this.tokenStream.getPosition() - 1);
@@ -2384,7 +2422,7 @@ export class Parser {
         try {
             // Look backward in the token stream to identify the context
             const originalPos = this.tokenStream.getPosition();
-            
+
             // In IDE mode, try to extract the failed class name from the parsing context
             let ideRecoveryDone = false;
             if (this.config.ideMode && error.message.includes("Expected '}'")) {
@@ -2394,7 +2432,7 @@ export class Parser {
                     if (partialClass) {
                         recovered.push(partialClass);
                         ideRecoveryDone = true;
-                        
+
                         // Advance to end to prevent re-parsing the same content
                         while (!this.tokenStream.eof()) {
                             this.tokenStream.next();
@@ -2402,11 +2440,11 @@ export class Parser {
                     }
                 }
             }
-            
+
             // Standard backward search for other cases (skip if IDE recovery already succeeded)
             if (!ideRecoveryDone) {
                 const searchPos = Math.max(0, originalPos - 20); // Increased search range
-                
+
                 // Scan backwards to identify what kind of declaration we were parsing
                 for (let pos = originalPos - 1; pos >= searchPos; pos--) {
                 this.tokenStream.setPosition(pos);
@@ -2419,7 +2457,7 @@ export class Parser {
                         const partialClass = this.parsePartialClassDeclaration();
                         if (partialClass) {
                             recovered.push(partialClass);
-                            
+
                             // Try to advance past the problematic content
                             this.tokenStream.setPosition(originalPos);
                             // Skip to end of class or file
@@ -2434,25 +2472,25 @@ export class Parser {
                             break;
                         }
                     }
-                    
+
                     const result = this.declarationRecovery.handleClassDeclarationError(
-                        this.tokenStream, 
-                        error.message, 
+                        this.tokenStream,
+                        error.message,
                         'partial_recovery'
                     );
-                    
+
                     this.applyDeclarationRecoveryResult(result);
                     break;
                 }
 
-                // Attempt function declaration recovery  
+                // Attempt function declaration recovery
                 if (token.value === 'function' || token.kind === TokenKind.KeywordType) {
                     const result = this.declarationRecovery.handleFunctionDeclarationError(
                         this.tokenStream,
                         error.message,
                         'partial_recovery'
                     );
-                    
+
                     this.applyDeclarationRecoveryResult(result);
                     break;
                 }
@@ -2464,7 +2502,7 @@ export class Parser {
                         error.message,
                         'partial_recovery'
                     );
-                    
+
                     this.applyDeclarationRecoveryResult(result);
                     break;
                 }
@@ -2487,15 +2525,15 @@ export class Parser {
     private extractFailedClassName(): string | null {
         // Look at the most recent tokens to find a class declaration pattern
         const recentTokens = this.tokenStream.getRecentTokens(50); // Look at last 50 tokens
-        
+
         // Find the most recent "class ClassName" pattern
         for (let i = recentTokens.length - 1; i >= 1; i--) {
-            if (recentTokens[i - 1]?.value === 'class' && 
+            if (recentTokens[i - 1]?.value === 'class' &&
                 recentTokens[i]?.kind === TokenKind.Identifier) {
                 return recentTokens[i].value;
             }
         }
-        
+
         return null;
     }
 
@@ -2505,7 +2543,7 @@ export class Parser {
     private createPartialClassByName(className: string): ClassDeclNode | null {
         // Create a minimal class declaration
         const position = this.document.positionAt(0);
-        
+
         return {
             kind: 'ClassDecl',
             uri: this.document.uri,
@@ -2812,4 +2850,3 @@ export class Parser {
         this.skipToMatchingClosingBrace(false, false);
     }
 }
-
