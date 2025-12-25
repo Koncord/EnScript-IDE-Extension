@@ -860,7 +860,7 @@ export class SymbolOperations implements ISymbolOperations {
             // Regex: Find "//" that is NOT at the start of the line (checked by code context logic usually,
             // but here we assume the symbol exists on this line).
             // We capture everything after //, optionally stripping < or ! if it's Doxygen style
-            const trailingMatch = currentLine.match(/[^\/](\/\/[!/<]*\s*)(.*)$/);
+            const trailingMatch = currentLine.match(/[^/](\/\/[!/<]*\s*)(.*)$/);
 
             if (trailingMatch && trailingMatch[2]) {
                 const rawComment = trailingMatch[2].trim();
@@ -871,7 +871,7 @@ export class SymbolOperations implements ISymbolOperations {
             }
 
             // Check for Preceding Comments (Go upwards)
-            let docLines: string[] = [];
+            const docLines: string[] = [];
             let inCommentBlock = false;
 
             for (let i = startLine - 1; i >= 0; i--) {
