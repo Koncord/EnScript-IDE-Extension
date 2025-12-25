@@ -87,7 +87,24 @@ export class ServerConfigurationManager {
         try {
             // Track if include paths changed
             const oldIncludePaths = [...this.config.includePaths];
-            
+
+            // Handle standard definitions and "ambiguous" (!SYMBOL) definitions
+            const rawDefs = config.preprocessorDefinitions || [];
+            const cleanDefs: string[] = [];
+            const ambiguousDefs: string[] = [];
+
+            for (const def of rawDefs) {
+                if (def.startsWith('!')) {
+                    const cleanName = def.substring(1);
+                    // Add to definitions so #ifdef works
+                    cleanDefs.push(cleanName);
+                    // Add to ambiguous so #else also works
+                    ambiguousDefs.push(cleanName);
+                } else {
+                    cleanDefs.push(def);
+                }
+            }
+
             this.config.includePaths = config.includePaths || [];
             this.config.preprocessorDefinitions = config.preprocessorDefinitions || [];
             this.config.modRoots = config.modRoots || (process.platform === 'win32' ? ['P:\\'] : []);
@@ -97,7 +114,7 @@ export class ServerConfigurationManager {
                 this.config.diagnostics = config.diagnostics;
                 Logger.info(`🔧 Updating diagnostic configuration from VS Code settings`);
                 globalDiagnosticConfig.loadFromJSON(config.diagnostics);
-                
+
                 // Handle external tab diagnostics settings
                 const diagnosticsConfig = config.diagnostics as Record<string, unknown>;
                 if (typeof diagnosticsConfig.enableExternalTabDiagnostics === 'boolean') {
