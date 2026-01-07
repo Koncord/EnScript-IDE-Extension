@@ -1,3 +1,4 @@
+// eslint-disable-next-line no-undef
 const vscode = acquireVsCodeApi();
 
 let imageSetData = null;
