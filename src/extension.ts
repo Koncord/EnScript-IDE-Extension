@@ -9,14 +9,23 @@ import { IncludePathsManager } from './include-paths-manager';
 import { ImagePreviewWebview } from './webviews/image-preview-webview';
 import { ImageSetPreviewProvider } from './webviews/imageset-preview-webview';
 import { configureDayZTools, showFirstTimeSetup } from './dayz-tools-finder';
+
+import { registerPreprocessorFeatures } from './preprocessor';
+import { registerFormatter } from './formatter';
 import { EnScriptDebugAdapterDescriptorFactory, EnScriptDebugConfigurationProvider } from './debug/debug-adapter-factory';
 
 let clientManager: LanguageClientManager | undefined;
 let includePathsManager: IncludePathsManager | undefined;
 
 export async function activate(context: vscode.ExtensionContext) {
+
+    // Initialize Preprocessor Features (Folding & Rainbow #ifdefs)
+    registerPreprocessorFeatures(context);
+    // Initialize Formatter
+    registerFormatter(context);
+
     includePathsManager = await IncludePathsManager.initializeAsync(context);
-    
+
     clientManager = new LanguageClientManager(context);
     await clientManager.start();
 
@@ -31,13 +40,13 @@ export async function activate(context: vscode.ExtensionContext) {
     
     // Register imageset preview for .imageset files
     context.subscriptions.push(ImageSetPreviewProvider.register(context));
-    
+
     includePathsManager.setClientGetter(() => clientManager?.getClient());
 
     // Register debug adapter
     context.subscriptions.push(
         vscode.debug.registerDebugAdapterDescriptorFactory(
-            'enscript', 
+            'enscript',
             new EnScriptDebugAdapterDescriptorFactory(context)
         )
     );

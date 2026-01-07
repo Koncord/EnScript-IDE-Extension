@@ -1,0 +1,247 @@
+name: EnScript
+scopeName: source.enscript
+$schema: https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json
+
+fileTypes:
+  - c
+  - enscript
+
+patterns:
+  # base (1 priority)
+  - include: '#comments'
+  - include: '#strings'
+  - include: '#preprocessor'
+
+  # keywords and types
+  - include: '#keywords'
+  - include: '#storage-types'
+  - include: '#typedefs'
+
+  # constants
+  - include: '#attributes'
+  - include: '#constants'
+
+  # defines
+  - include: '#object-creation'
+  - include: '#function-definitions'
+
+  # function calls
+  - include: '#functions'
+
+  # properties and vars
+  - include: '#member-access'
+  - include: '#member-variables'
+  - include: '#variable-heuristics'
+  - include: '#variable-declarations'
+
+  # other (lowest priority)
+  - include: '#classes'
+  - include: '#operators'
+  - include: '#punctuation'
+
+repository:
+
+  functions:
+    match: \b([a-zA-Z_]\w*)\s*(?=\()
+    captures:
+      1: { name: entity.name.function.enforce }
+
+  member-access:
+    match: (\.)\s*([a-zA-Z_]\w*)\b(?!\s*\()
+    captures:
+      1: { name: punctuation.separator.access.enforce }
+      2: { name: variable.object.property.enforce }
+
+  variable-heuristics:
+    patterns:
+      - match: \b([a-zA-Z_]\w*)\b\s*(?=\.)
+        captures:
+          1: { name: variable.other.object.enforce }
+      - match: \b(?!(?:if|else|while|for|foreach|return|switch|case|default|break|continue|new|delete|class|modded|extends|void|true|false|null|this|super|static|private|protected|public|ref|out|inout|autoptr|managed|proto|native)\b)([a-z][a-zA-Z0-9_]*)\b
+        name: variable.other.readwrite.enforce
+
+  object-creation:
+    match: \b(new)\s+([a-zA-Z_]\w*)(?:<[^>]+>)?
+    captures:
+      1: { name: keyword.operator.new.enforce }
+      2: { name: entity.name.type.class.enforce }
+
+  function-definitions:
+    name: meta.function.definition.enforce
+    begin: \b([a-zA-Z_]\w+(?:<[^>]+>)?)\s+([a-zA-Z_]\w*)\s*(\()
+    beginCaptures:
+      1: { name: storage.type.return.enforce }
+      2: { name: entity.name.function.enforce }
+      3: { name: punctuation.definition.parameters.begin.enforce }
+    end: (\))
+    endCaptures:
+      1: { name: punctuation.definition.parameters.end.enforce }
+    patterns:
+      - include: '#comments'
+      - include: '#function-parameters'
+
+  function-parameters:
+    patterns:
+      - include: '#storage-types'
+      - include: '#typedefs'
+      - include: '#keywords'
+      - match: \b([a-zA-Z_]\w+(?:<[^>]+>)?)\s+([a-zA-Z_]\w*)\b
+        captures:
+          1: { name: storage.type.parameter.enforce }
+          2: { name: variable.parameter.enforce }
+      - match: ","
+        name: punctuation.separator.parameter.enforce
+
+  comments:
+    patterns:
+      - name: comment.block.documentation.enforce
+        begin: /\*\*
+        end: \*/
+        patterns:
+          - match: (\\|@)[a-zA-Z]+
+            name: keyword.other.documentation.tag.enforce
+          - match: ((\\|@)param)\s+(\[(in|out|inout)\]\s+)?([a-zA-Z0-9_]+)
+            captures:
+              1: { name: keyword.other.documentation.tag.enforce }
+              3: { name: storage.modifier.enforce }
+              5: { name: variable.parameter.enforce }
+      - name: comment.block.enforce
+        begin: /\*
+        end: \*/
+      - name: comment.line.documentation.enforce
+        match: //![^\n]*
+      - name: comment.line.double-slash.enforce
+        match: //.*$
+
+  attributes:
+    name: meta.attribute.enforce
+    begin: \[
+    end: \]
+    patterns:
+      - match: \b([A-Z][a-zA-Z0-9_]*)\b
+        name: entity.name.type.attribute.enforce
+      - include: '#strings'
+      - include: '#constants'
+
+  preprocessor:
+    name: meta.preprocessor.enforce
+    match: ^\s*(#\s*(ifdef|ifndef|define|else|endif|include|undef))\b
+    captures:
+      1: { name: keyword.control.directive.enforce }
+
+  strings:
+    name: string.quoted.double.enforce
+    begin: '"'
+    end: '"'
+    patterns:
+      - name: constant.character.escape.enforce
+        match: \\.
+
+  constants:
+    patterns:
+      - name: constant.language.enforce
+        match: \b(true|false|null|INVALID_HANDLE)\b
+      - name: variable.language.this.enforce
+        match: \b(this|super)\b
+      - name: support.variable.global.enforce
+        match: \bg_Game\b
+      - name: constant.numeric.hex.enforce
+        match: \b0x[a-fA-F0-9]+\b
+      - name: constant.numeric.float.enforce
+        match: \b\d+\.\d*(f|F)?\b|\b\d+(f|F)\b
+      - name: constant.numeric.integer.enforce
+        match: \b\d+\b
+
+  keywords:
+    patterns:
+      - name: keyword.control.enforce
+        match: \b(if|else|while|for|foreach|return|switch|case|default|break|continue)\b
+      - name: keyword.operator.new.enforce
+        match: \b(new|delete|sizeof)\b
+      - name: keyword.control.modifier.enforce
+        match: \b(private|protected|static|override|proto|native|owned|external|volatile|const)\b
+      - name: storage.modifier.memory.enforce
+        match: \b(ref|autoptr|out|inout)\b
+      - name: keyword.control.class.enforce
+        match: \b(class|modded|extends|enum|typedef|thread)\b
+
+  storage-types:
+    patterns:
+      - name: storage.type.primitive.enforce
+        match: \b(void|int|float|bool|string|vector|typename|auto|Class)\b
+      - name: storage.type.generic.enforce
+        match: \b(array|map|set)\b
+      - name: support.class.engine.enforce
+        match: \b(Managed|Object|EntityAI|Entity|ScriptModule|EnScript)\b
+
+  typedefs:
+    patterns:
+      - name: storage.type.typedef.enforce
+        match: \b(TStringArray|TFloatArray|TIntArray|TBoolArray|TClassArray|TManagedArray|TManagedRefArray|TVectorArray|TTypenameArray)\b
+      - name: storage.type.typedef.enforce
+        match: \b(TStringSet|TFloatSet|TIntSet|TClassSet|TManagedSet|TManagedRefSet|TTypenameSet)\b
+      - name: storage.type.typedef.enforce
+        match: \bT[A-Z][a-zA-Z]+Map\b
+      - name: storage.type.typedef.enforce
+        match: \b(MapIterator)\b
+
+  variable-declarations:
+    patterns:
+      - match: \b(int|float|bool|string|vector|typename|auto|Class|array|map|set|TStringArray|TVectorArray|T[a-zA-Z]+Array)\s+(?!new\b)([a-zA-Z_]\w*)
+        captures:
+          1: { name: storage.type.enforce }
+          2: { name: variable.other.enforce }
+      - match: \b([A-Z][a-zA-Z0-9_]*)\s+(?!new\b|class\b)([a-zA-Z_]\w*)\s*(?=[=;,])
+        captures:
+          1: { name: support.class.enforce }
+          2: { name: variable.other.enforce }
+
+  member-variables:
+    patterns:
+      - match: \b(m_[a-zA-Z0-9_]*)\b
+        name: variable.object.property.enforce
+      - match: \b(s_[a-zA-Z0-9_]*)\b
+        name: variable.other.readwrite.static.enforce
+
+  classes:
+    patterns:
+      - match: \b(class|modded\s+class|enum)\s+([a-zA-Z_]\w*)
+        captures:
+          1: { name: keyword.control.class.enforce }
+          2: { name: entity.name.type.class.enforce }
+      - match: (:\s*)([a-zA-Z_]\w*)
+        captures:
+          2: { name: entity.name.type.class.inherited.enforce }
+      - match: (<\s*)([a-zA-Z_]\w*)
+        captures:
+          2: { name: storage.type.template.enforce }
+      - match: \b[A-Z][a-zA-Z0-9_]*\b
+        name: support.class.enforce
+      - match: \b[A-Z][A-Z0-9_]+\b
+        name: constant.other.define.enforce
+
+  operators:
+    patterns:
+      - match: (\+\+|--)
+        name: keyword.operator.increment-decrement.enforce
+      - match: (&&|\|\||!)
+        name: keyword.operator.logical.enforce
+      - match: (==|!=|<=|>=|<|>)
+        name: keyword.operator.comparison.enforce
+      - match: (\+=|-=|\*=|/=|%=|&=|\|=|\^=|<<=|>>=|=)
+        name: keyword.operator.assignment.enforce
+      - match: (<<|>>|&|\||\^|~)
+        name: keyword.operator.bitwise.enforce
+      - match: (\+|-|\*|/|%)
+        name: keyword.operator.arithmetic.enforce
+      - match: (\.|->)
+        name: punctuation.separator.access.enforce
+      - match: \?
+        name: keyword.operator.ternary.enforce
+
+  punctuation:
+    patterns:
+      - match: (\(|\)|\[|\]|\{|\})
+        name: punctuation.section.enforce
+      - match: (,|;)
+        name: punctuation.separator.enforce
