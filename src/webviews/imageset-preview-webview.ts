@@ -186,6 +186,8 @@ export class ImageSetPreviewProvider implements vscode.CustomTextEditorProvider 
         // Get URIs for resources
         const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(
             this.context.extensionUri, 'media', 'imageset-preview', 'script.js'));
+        const commonStyleUri = webview.asWebviewUri(vscode.Uri.joinPath(
+            this.context.extensionUri, 'media', 'common.css'));
         const styleUri = webview.asWebviewUri(vscode.Uri.joinPath(
             this.context.extensionUri, 'media', 'imageset-preview', 'style.css'));
 
@@ -204,6 +206,7 @@ export class ImageSetPreviewProvider implements vscode.CustomTextEditorProvider 
         html = html.replace(/\{\{cspNonce\}\}/g, `'nonce-${nonce}'`);
         html = html.replace(/\{\{nonce\}\}/g, nonce);
         html = html.replace(/\{\{scriptUri\}\}/g, scriptUri.toString());
+        html = html.replace(/\{\{commonStyleUri\}\}/g, commonStyleUri.toString());
         html = html.replace(/\{\{styleUri\}\}/g, styleUri.toString());
         html = html.replace(/\{\{imageSetData\}\}/g, JSON.stringify(dataWithTexture));
 

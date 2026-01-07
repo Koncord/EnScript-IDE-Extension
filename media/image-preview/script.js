@@ -1,11 +1,12 @@
 // Acquire VS Code API
+// eslint-disable-next-line no-undef
 const vscode = acquireVsCodeApi();
 
 let mipmaps = [];
 let currentMipLevel = 0;
 let currentZoom = 1.0;
 let isDragging = false;
-let startX, startY, scrollLeft, scrollTop;
+let startX, startY;
 
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d', { alpha: true });

@@ -270,6 +270,8 @@ export class ReplWebviewManager {
         // Get URIs for resources
         const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(
             ReplWebviewManager.context.extensionUri, 'media', 'repl', 'script.js'));
+        const commonStyleUri = webview.asWebviewUri(vscode.Uri.joinPath(
+            ReplWebviewManager.context.extensionUri, 'media', 'common.css'));
         const styleUri = webview.asWebviewUri(vscode.Uri.joinPath(
             ReplWebviewManager.context.extensionUri, 'media', 'repl', 'style.css'));
 
@@ -281,6 +283,7 @@ export class ReplWebviewManager {
             .replace(/{{cspNonce}}/g, `'nonce-${nonce}'`)
             .replace(/{{nonce}}/g, nonce)
             .replace(/{{scriptUri}}/g, scriptUri.toString())
+            .replace(/{{commonStyleUri}}/g, commonStyleUri.toString())
             .replace(/{{styleUri}}/g, styleUri.toString());
     }
 }

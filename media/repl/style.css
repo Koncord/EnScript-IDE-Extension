@@ -1,16 +1,8 @@
-/* Base Styles */
-* {
-    box-sizing: border-box;
-    margin: 0;
-    padding: 0;
-}
+/* REPL Specific Styles */
+/* Common styles are imported from common.css */
 
+/* Override body for REPL layout */
 body {
-    margin: 0;
-    padding: 0;
-    font-family: var(--vscode-font-family);
-    color: var(--vscode-editor-foreground);
-    background-color: var(--vscode-editor-background);
     height: 100vh;
     display: flex;
     flex-direction: column;
@@ -56,56 +48,14 @@ body {
     gap: 8px;
 }
 
+/* Override select for REPL */
+select {
+    font-size: 12px;
+}
+
 .module-selector label {
     font-size: 12px;
     color: var(--vscode-descriptionForeground);
-}
-
-/* Form Controls */
-select {
-    background-color: var(--vscode-dropdown-background);
-    color: var(--vscode-dropdown-foreground);
-    border: 1px solid var(--vscode-dropdown-border);
-    padding: 4px 8px;
-    border-radius: 2px;
-    font-size: 12px;
-    cursor: pointer;
-}
-
-select:focus {
-    outline: 1px solid var(--vscode-focusBorder);
-}
-
-button {
-    padding: 6px 12px;
-    background-color: var(--vscode-button-background);
-    color: var(--vscode-button-foreground);
-    border: none;
-    border-radius: 2px;
-    cursor: pointer;
-    font-size: 12px;
-    font-family: var(--vscode-font-family);
-    display: flex;
-    align-items: center;
-    gap: 6px;
-}
-
-button:hover {
-    background-color: var(--vscode-button-hoverBackground);
-}
-
-button:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-}
-
-button.secondary {
-    background-color: var(--vscode-button-secondaryBackground);
-    color: var(--vscode-button-secondaryForeground);
-}
-
-button.secondary:hover {
-    background-color: var(--vscode-button-secondaryHoverBackground);
 }
 
 /* Main content area */
@@ -200,29 +150,4 @@ button.secondary:hover {
 .output-message {
     margin-top: 6px;
     font-size: 12px;
-}
-
-.empty-output {
-    color: var(--vscode-descriptionForeground);
-    font-style: italic;
-    text-align: center;
-    padding: 40px;
-}
-
-/* Scrollbar styling */
-::-webkit-scrollbar {
-    width: 10px;
-}
-
-::-webkit-scrollbar-track {
-    background: var(--vscode-scrollbarSlider-background);
-}
-
-::-webkit-scrollbar-thumb {
-    background: var(--vscode-scrollbarSlider-activeBackground);
-    border-radius: 5px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-    background: var(--vscode-scrollbarSlider-hoverBackground);
 }

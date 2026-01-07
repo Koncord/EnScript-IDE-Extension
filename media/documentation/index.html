@@ -1,23 +1,21 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
-    
-    <!--
-    Use a content security policy to only allow loading styles from our extension directory,
-    and only allow scripts with a specific nonce.
-    -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src {{cspSource}}; script-src 'nonce-{{nonce}}';">
-    
+    <meta http-equiv="Content-Security-Policy"
+        content="default-src 'none'; style-src {{cspSource}}; script-src 'nonce-{{nonce}}';">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    
+    <link href="{{commonStyleUri}}" rel="stylesheet">
     <link href="{{styleUri}}" rel="stylesheet">
-    
+
     <title>{{ruleName}} - Documentation</title>
 </head>
+
 <body>
     <div class="markdown-body">
         {{content}}
     </div>
 </body>
+
 </html>

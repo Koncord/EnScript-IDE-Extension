@@ -1,4 +1,5 @@
-(function() {
+(function () {
+    // eslint-disable-next-line no-undef
     const vscode = acquireVsCodeApi();
     const moduleSelect = document.getElementById('module');
     const executeBtn = document.getElementById('executeBtn');
@@ -16,7 +17,7 @@
     if (executeBtn) {
         executeBtn.addEventListener('click', executeCode);
     }
-    
+
     function executeCode() {
         if (!isConnected) {
             addOutputEntry({
@@ -51,7 +52,7 @@
     // Handle messages from extension
     window.addEventListener('message', event => {
         const message = event.data;
-        
+
         switch (message.command) {
             case 'result':
                 addOutputEntry(message);
@@ -71,10 +72,10 @@
 
         const entry = document.createElement('div');
         entry.className = 'output-entry ' + (data.success ? 'success' : 'error');
-        
+
         const time = new Date(data.timestamp).toLocaleTimeString();
         const moduleBadge = data.module ? `<span class="output-module">${data.module}</span>` : '';
-        
+
         entry.innerHTML = `
             <div class="output-meta">
                 <span>${time} ${moduleBadge}</span>
@@ -83,7 +84,7 @@
             ${data.code ? `<div class="output-code">${escapeHtml(data.code)}</div>` : ''}
             <div class="output-message">${escapeHtml(data.message)}</div>
         `;
-        
+
         outputContent.insertBefore(entry, outputContent.firstChild);
         executions++;
         updateExecutionCount();

@@ -104,6 +104,8 @@ export class DocumentationWebview {
         const nonce = getNonce();
 
         // Get URIs for resources
+        const commonStyleUri = webview.asWebviewUri(vscode.Uri.joinPath(
+            this.context.extensionUri, 'media', 'common.css'));
         const styleUri = webview.asWebviewUri(vscode.Uri.joinPath(
             this.context.extensionUri, 'media', 'documentation', 'style.css'));
         
@@ -116,6 +118,7 @@ export class DocumentationWebview {
         html = html.replace(/{{nonce}}/g, nonce);
         html = html.replace(/{{ruleName}}/g, ruleName);
         html = html.replace(/{{content}}/g, parsedContent as string);
+        html = html.replace(/{{commonStyleUri}}/g, commonStyleUri.toString());
         html = html.replace(/{{styleUri}}/g, styleUri.toString());
         
         return html;

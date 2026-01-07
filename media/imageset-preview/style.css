@@ -1,43 +1,12 @@
-* {
-    box-sizing: border-box;
-}
+/* Imageset Preview Specific Styles */
+/* Common styles are imported from common.css */
 
+/* Override body for imageset preview layout */
 body {
-    margin: 0;
-    padding: 0;
-    font-family: var(--vscode-font-family);
-    color: var(--vscode-editor-foreground);
-    background-color: var(--vscode-editor-background);
     display: flex;
     flex-direction: column;
     height: 100vh;
     overflow: hidden;
-}
-
-.toolbar {
-    display: flex;
-    gap: 12px;
-    padding: 8px 16px;
-    background-color: var(--vscode-sideBar-background);
-    border-bottom: 1px solid var(--vscode-panel-border);
-    align-items: center;
-    font-size: 12px;
-    flex-shrink: 0;
-}
-
-.toolbar-group {
-    display: flex;
-    gap: 8px;
-    align-items: center;
-}
-
-.info-label {
-    color: var(--vscode-descriptionForeground);
-}
-
-.info-value {
-    font-weight: 600;
-    color: var(--vscode-editor-foreground);
 }
 
 .content {
@@ -163,18 +132,6 @@ body {
 
 .image-item-details {
     font-size: 11px;
-    color: var(--vscode-descriptionForeground);
-}
-
-.error-message {
-    padding: 20px;
-    color: var(--vscode-errorForeground);
-    text-align: center;
-}
-
-.no-texture-message {
-    padding: 40px 20px;
-    text-align: center;
     color: var(--vscode-descriptionForeground);
 }
 
