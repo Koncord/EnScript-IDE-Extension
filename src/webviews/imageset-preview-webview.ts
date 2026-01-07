@@ -59,30 +59,22 @@ export class ImageSetPreviewProvider implements vscode.CustomTextEditorProvider 
             enableScripts: true,
         };
 
-        // Update webview content based on document
-        const updateWebview = async () => {
-            try {
-                const imageSetData = await this.parseImageSet(document.uri);
-                if (!imageSetData) {
-                    webviewPanel.webview.html = this.getErrorHtml('Failed to parse .imageset file');
-                    return;
-                }
-
-                let textureData: string | null = null;
-                if (imageSetData.textures.length > 0) {
-                    textureData = await this.loadTexture(document.uri, imageSetData.textures[0].path);
-                }
-
-                webviewPanel.webview.html = this.getHtmlForWebview(webviewPanel.webview, imageSetData, textureData);
-            } catch (error) {
-                webviewPanel.webview.html = this.getErrorHtml(`Error: ${error}`);
+        // Set up message handling
+        webviewPanel.webview.onDidReceiveMessage(async e => {
+            if (e.type === 'ready') {
+                await this.updateWebviewData(document.uri, webviewPanel);
             }
+        });
+
+        // Update webview content based on document
+        const updateWebviewData = async () => {
+            await this.updateWebviewData(document.uri, webviewPanel);
         };
 
         // Hook up event handlers to synchronize the webview with the text document
         const changeDocumentSubscription = vscode.workspace.onDidChangeTextDocument(e => {
             if (e.document.uri.toString() === document.uri.toString()) {
-                updateWebview();
+                updateWebviewData();
             }
         });
 
@@ -91,8 +83,36 @@ export class ImageSetPreviewProvider implements vscode.CustomTextEditorProvider 
             changeDocumentSubscription.dispose();
         });
 
-        // Initial update
-        updateWebview();
+        // Set initial HTML (static template)
+        webviewPanel.webview.html = this.getHtmlForWebview(webviewPanel.webview);
+    }
+
+    private async updateWebviewData(uri: vscode.Uri, webviewPanel: vscode.WebviewPanel): Promise<void> {
+        try {
+            const imageSetData = await this.parseImageSet(uri);
+            if (!imageSetData) {
+                this.postMessage(webviewPanel, 'error', 'Failed to parse .imageset file');
+                return;
+            }
+
+            let textureData: string | null = null;
+            if (imageSetData.textures.length > 0) {
+                textureData = await this.loadTexture(uri, imageSetData.textures[0].path);
+            }
+
+            const dataWithTexture = {
+                ...imageSetData,
+                textureData: textureData
+            };
+
+            this.postMessage(webviewPanel, 'init', dataWithTexture);
+        } catch (error) {
+            this.postMessage(webviewPanel, 'error', `Error: ${error}`);
+        }
+    }
+
+    private postMessage(panel: vscode.WebviewPanel, type: string, body: unknown): void {
+        panel.webview.postMessage({ type, body });
     }
 
     private async parseImageSet(uri: vscode.Uri): Promise<ImageSetData | null> {
@@ -180,7 +200,7 @@ export class ImageSetPreviewProvider implements vscode.CustomTextEditorProvider 
         return Buffer.from(rgba).toString('base64');
     }
 
-    private getHtmlForWebview(webview: vscode.Webview, imageSetData: ImageSetData, textureData: string | null): string {
+    private getHtmlForWebview(webview: vscode.Webview): string {
         const nonce = getNonce();
 
         // Get URIs for resources
@@ -195,12 +215,6 @@ export class ImageSetPreviewProvider implements vscode.CustomTextEditorProvider 
         const htmlPath = path.join(this.context.extensionPath, 'media', 'imageset-preview', 'index.html');
         let html = fs.readFileSync(htmlPath, 'utf8');
 
-        // Prepare data with texture
-        const dataWithTexture = {
-            ...imageSetData,
-            textureData: textureData
-        };
-
         // Replace placeholders
         html = html.replace(/\{\{cspSource\}\}/g, webview.cspSource);
         html = html.replace(/\{\{cspNonce\}\}/g, `'nonce-${nonce}'`);
@@ -208,39 +222,8 @@ export class ImageSetPreviewProvider implements vscode.CustomTextEditorProvider 
         html = html.replace(/\{\{scriptUri\}\}/g, scriptUri.toString());
         html = html.replace(/\{\{commonStyleUri\}\}/g, commonStyleUri.toString());
         html = html.replace(/\{\{styleUri\}\}/g, styleUri.toString());
-        html = html.replace(/\{\{imageSetData\}\}/g, JSON.stringify(dataWithTexture));
 
         return html;
     }
 
-    private getErrorHtml(message: string): string {
-        return `<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Error</title>
-    <style>
-        body {
-            margin: 0;
-            padding: 20px;
-            font-family: var(--vscode-font-family);
-            color: var(--vscode-errorForeground);
-            background-color: var(--vscode-editor-background);
-        }
-        .error {
-            padding: 20px;
-            border: 1px solid var(--vscode-errorForeground);
-            border-radius: 4px;
-        }
-    </style>
-</head>
-<body>
-    <div class="error">
-        <h3>Error Loading ImageSet Preview</h3>
-        <p>${message}</p>
-    </div>
-</body>
-</html>`;
-    }
 }

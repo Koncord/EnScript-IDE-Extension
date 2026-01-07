@@ -41,6 +41,25 @@ export async function activate(context: vscode.ExtensionContext) {
     // Register imageset preview for .imageset files
     context.subscriptions.push(ImageSetPreviewProvider.register(context));
 
+    // Register commands to open imageset files
+    context.subscriptions.push(
+        vscode.commands.registerCommand('enscript.openImageSetPreview', async (uri?: vscode.Uri) => {
+            const targetUri = uri ?? vscode.window.activeTextEditor?.document.uri;
+            if (targetUri) {
+                await vscode.commands.executeCommand('vscode.openWith', targetUri, 'enscript.imagesetPreview', vscode.ViewColumn.Beside);
+            }
+        })
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('enscript.openImageSetPreviewInPlace', async (uri?: vscode.Uri) => {
+            const targetUri = uri ?? vscode.window.activeTextEditor?.document.uri;
+            if (targetUri) {
+                await vscode.commands.executeCommand('vscode.openWith', targetUri, 'enscript.imagesetPreview');
+            }
+        })
+    );
+
     includePathsManager.setClientGetter(() => clientManager?.getClient());
 
     // Register debug adapter

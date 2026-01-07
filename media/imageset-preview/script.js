@@ -1,6 +1,6 @@
 const vscode = acquireVsCodeApi();
-const imageSetData = {{imageSetData}};
 
+let imageSetData = null;
 let selectedImageIndex = null;
 let currentZoom = 1.0;
 let isDragging = false;
@@ -8,6 +8,22 @@ let dragStartX = 0;
 let dragStartY = 0;
 let scrollStartX = 0;
 let scrollStartY = 0;
+
+// Handle messages from the extension
+window.addEventListener('message', event => {
+    const message = event.data;
+    
+    switch (message.type) {
+        case 'init':
+            imageSetData = message.body;
+            initializePreview();
+            break;
+        case 'error':
+            document.getElementById('error-container').textContent = message.body;
+            document.getElementById('error-container').style.display = 'block';
+            break;
+    }
+});
 
 function initializePreview() {
     if (!imageSetData) {
@@ -241,6 +257,8 @@ function setupDragNavigation() {
     document.addEventListener('mouseup', handleMouseUp);
 }
 
-// Initialize on load
-initializePreview();
+// Set up drag navigation on load
 setupDragNavigation();
+
+// Signal that the webview is ready to receive data
+vscode.postMessage({ type: 'ready' });

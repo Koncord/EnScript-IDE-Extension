@@ -549,6 +549,16 @@
                     }
                 ],
                 "priority": "default"
+            },
+            {
+                "viewType": "enscript.imagesetPreview",
+                "displayName": "ImageSet Preview",
+                "selector": [
+                    {
+                        "filenamePattern": "*.imageset"
+                    }
+                ],
+                "priority": "default"
             }
         ],
         "breakpoints": [
