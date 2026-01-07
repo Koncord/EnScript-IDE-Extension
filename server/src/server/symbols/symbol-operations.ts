@@ -1,6 +1,6 @@
 /**
  * Symbol Operations
- * 
+ *
  * Handles symbol resolution, navigation, and reference finding.
  * Provides LSP features like go-to-definition, find-references, and hover.
  */
@@ -62,6 +62,8 @@ import { ISymbolOperations } from './symbol-operations-interfaces';
 import { injectable, inject } from 'inversify';
 import { TYPES } from '../di/tokens';
 import { IWorkspaceManager } from '../workspace/workspace-interfaces';
+import { URI } from 'vscode-uri';
+import * as fs from 'fs';
 
 /**
  * Handles symbol resolution and navigation operations
@@ -144,6 +146,12 @@ export class SymbolOperations implements ISymbolOperations {
             // Format the first symbol for hover display
             const symbol = symbols[0];
             let formatted = formatDeclaration(symbol); // Already includes code fence
+
+            // Documentation (Comments)
+            const documentation = await this.getSymbolDocumentation(symbol, doc);
+            if (documentation) {
+                formatted += `\n\n---\n${documentation}\n\n---`;
+            }
 
             // For parameters and variables with generic or auto types, show the inferred type
             if ((isParameterDecl(symbol) || isVarDecl(symbol)) && symbol.type) {
@@ -465,7 +473,7 @@ export class SymbolOperations implements ISymbolOperations {
     /**
      * Find all references to a symbol
      * Used for Find All References (Shift+F12) functionality
-     * 
+     *
      * @param doc Document containing the symbol
      * @param position Position of the symbol
      * @param includeDeclaration Whether to include the declaration in results
@@ -555,7 +563,7 @@ export class SymbolOperations implements ISymbolOperations {
 
     /**
      * Recursively find all identifier references in an AST node
-     * 
+     *
      * @param node The AST node to search in
      * @param targetName The identifier name to search for
      * @param uri URI of the document being searched
@@ -816,4 +824,219 @@ export class SymbolOperations implements ISymbolOperations {
         }
     }
 
+    /**
+     * Extracts documentation.
+     * Priority:
+     * 1. Trailing comment on the same line (// ... or //!< ...)
+     * 2. Preceding block comment (/** ... *\/ or // ...)
+     *
+     * Stops immediately if non-comment code is found above.
+     */
+    private async getSymbolDocumentation(symbol: SymbolLookupResult, activeDoc: TextDocument): Promise<string | null> {
+        try {
+            if (!symbol.uri || !symbol.start) return null;
+
+            let lines: string[];
+
+            // Get file content
+            if (normalizeUri(activeDoc.uri) === normalizeUri(symbol.uri)) {
+                lines = activeDoc.getText().split(/\r?\n/);
+            } else {
+                const filePath = URI.parse(symbol.uri).fsPath;
+                if (fs.existsSync(filePath)) {
+                    const content = fs.readFileSync(filePath, 'utf-8');
+                    lines = content.split(/\r?\n/);
+                } else {
+                    return null;
+                }
+            }
+
+            const startLine = symbol.start.line;
+            if (startLine >= lines.length) return null;
+
+            // Check for Trailing Comment on the EXACT definition line
+            // Supports: float x; // comment AND float x; //!< comment
+            const currentLine = lines[startLine];
+            // Regex: Find "//" that is NOT at the start of the line (checked by code context logic usually,
+            // but here we assume the symbol exists on this line).
+            // We capture everything after //, optionally stripping < or ! if it's Doxygen style
+            const trailingMatch = currentLine.match(/[^/](\/\/[!/<]*\s*)(.*)$/);
+
+            if (trailingMatch && trailingMatch[2]) {
+                const rawComment = trailingMatch[2].trim();
+                // If it's not just a closing brace or semicolon or empty
+                if (rawComment.length > 0) {
+                    return this.formatDoxygenToMarkdown(rawComment);
+                }
+            }
+
+            // Check for Preceding Comments (Go upwards)
+            const docLines: string[] = [];
+            let inCommentBlock = false;
+
+            for (let i = startLine - 1; i >= 0; i--) {
+                const line = lines[i].trim();
+
+                // Skip blank lines ONLY if we are inside a /** */ block
+                // OR if we haven't found any comments yet (allow 1 line gap? Usually strict is better).
+                // Let's be strict: if empty line and NOT in block -> stop.
+                // Exceptions: some code styles leave 1 empty line between comment and func.
+                // But generally, documentation should touch the code.
+                if (line === '') {
+                    if (inCommentBlock) {
+                        // Empty line inside JSDoc block is fine
+                        docLines.unshift('');
+                        continue;
+                    }
+                    // If we found comments already, an empty line means the comment block ended.
+                    if (docLines.length > 0) break;
+
+                    // If we haven't found comments yet, allow MAX 1 empty line gap?
+                    // No, to fix your "Sticky" issue, better to stop.
+                    // If you want to allow gaps, add logic here. For now: stop.
+                    continue;
+                }
+
+                // Handle closing of block comments (when reading upwards)
+                if (line.endsWith('*/')) {
+                    inCommentBlock = true;
+                }
+
+                // Handle Start of block comments (/**, /*!)
+                if (line.startsWith('/**') || line.startsWith('/*!')) {
+                    if (inCommentBlock) {
+                        docLines.unshift(this.cleanCommentLine(line));
+                        break; // Block complete
+                    }
+                }
+
+                if (inCommentBlock) {
+                    // Inside a block, take everything
+                    docLines.unshift(this.cleanCommentLine(line));
+                    if (line.startsWith('/*')) break; // Saftey break
+                } else {
+                    // Single line comments
+                    if (line.startsWith('//')) {
+                        // Remove leading slashes and doxygen markers (//, ///, //!<)
+                        const cleaned = line.replace(/^\/\/[!/<]*\s?/, '');
+                        docLines.unshift(cleaned);
+                    } else {
+                        // HIT CODE or Garbage -> STOP
+                        // This fixes the "RPC exchanged data" sticking to variables below it
+                        break;
+                    }
+                }
+            }
+
+            if (docLines.length === 0) return null;
+
+            const rawDocs = docLines.join('\n');
+            return this.formatDoxygenToMarkdown(rawDocs);
+
+        } catch (e) {
+            Logger.error('Error extracting documentation:', e);
+            return null;
+        }
+    }
+
+    /**
+     * Converts Doxygen-style tags to Markdown for VS Code Hover.
+     */
+    private formatDoxygenToMarkdown(text: string): string {
+        if (!text) return '';
+
+        let md = text;
+
+        // Escape '>' and '<' at the start of list items to prevent Blockquotes
+        // Converts "- > 0" to "- \> 0" so it renders as text, not a quote block.
+        md = md.replace(/^(\s*[-*+]\s+)>/gm, '$1\\>');
+        md = md.replace(/^(\s*[-*+]\s+)</gm, '$1\\<');
+
+        // Clean up misuse of \p for alignment (just remove it)
+        md = md.replace(/\s+([@\\])p\s+/g, ' ');
+
+        // Remove metadata tags
+        md = md.replace(/^[\t ]*([@\\])(?:fn|class|struct|headerfile|file|ingroup|name)\s+.*$/gm, '');
+
+        // Code Blocks
+        md = md.replace(/([@\\])code(?:\{\.?(\w+)\})?/g, '\n```$2');
+        md = md.replace(/([@\\])endcode/g, '```\n');
+
+        // Inline Formatting
+        md = md.replace(/([@\\])c\s+(\S+)/g, '`$2`');     // Code
+        md = md.replace(/([@\\])p\s+(\S+)/g, '`$2`');     // Param reference
+        md = md.replace(/([@\\])b\s+(\S+)/g, '**$2**');   // Bold
+        md = md.replace(/([@\\])(?:e|em)\s+(\S+)/g, '*$2*'); // Italic
+
+        // Major Sections
+        md = md.replace(/([@\\])(?:brief|short)\s+/g, '');
+        md = md.replace(/([@\\])details\s*/g, '\n\n');
+
+        // Parameters (With Header Logic)
+        // We use a stateful replace to insert the header only once per block of text.
+        // Note: This works because 'md' is processed linearly.
+        let hasParamHeader = false;
+
+        // Regex handles: @param, @param[in], \param
+        md = md.replace(/([@\\])param(?:\[.*?\])?\s+(\w+)/g, (match, prefix, name) => {
+            let replacement = '';
+
+            // If this is the first param we found in this documentation block, add a Header
+            if (!hasParamHeader) {
+                replacement += '\n\n**Parameters:**\n';
+                hasParamHeader = true;
+            }
+
+            // Format: - `name`:
+            replacement += `- \`${name}\`:`;
+            return replacement;
+        });
+
+        // Template params
+        md = md.replace(/([@\\])tparam\s+(\w+)/g, '\n- **$2** (template):');
+        // Returns
+        md = md.replace(/([@\\])(?:result|return|returns|retval)\s+/g, '\n**Returns:** ');
+
+        // Block Sections
+        const blockSections = [
+            { tag: 'note', label: '💡 Note' },
+            { tag: 'warning', label: '⚠️ Warning' },
+            { tag: 'todo', label: '📝 TODO' },
+            { tag: 'deprecated', label: '⛔ Deprecated' },
+            { tag: 'see', label: 'See also' },
+            { tag: 'sa', label: 'See also' }
+        ];
+        for (const section of blockSections) {
+            const regex = new RegExp(`([@\\\\])${section.tag}\\s+`, 'g');
+            md = md.replace(regex, `\n> **${section.label}:** `);
+        }
+
+        // Lists
+        md = md.replace(/([@\\])(?:arg|li)\s+/g, '\n- ');
+        // Final Cleanup
+        md = md.replace(/\n{3,}/g, '\n\n');
+
+        return md.trim();
+    }
+
+    /**
+     * Helper to clean JSDoc syntax from lines but PRESERVE indentation
+     * essential for nested markdown lists.
+     */
+    private cleanCommentLine(line: string): string {
+        // Remove standard comment markers
+        let cleaned = line
+            .replace(/^\s*\/\*\*?/, '')   // remove /** or /* with leading space
+            .replace(/^\s*\/\*!/, '')     // remove /*!
+            .replace(/^\s*\*\//, '')      // remove */
+            .replace(/^\s*\/\/\/?/, '')   // remove // or ///
+            .replace(/^\s*\/\/!/, '');    // remove //!
+        // Remove the leading asterisk common in block comments
+        cleaned = cleaned.replace(/^\s*\*\s?/, '');
+        // Remove trailing */ but keep trailing spaces (optional)
+        cleaned = cleaned.replace(/\*\/$/, '');
+
+        // DO NOT do .trim() here, otherwise nested lists (  - item) become top level (- item)
+        return cleaned.trimEnd();
+    }
 }
