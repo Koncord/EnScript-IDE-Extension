@@ -14,6 +14,11 @@ export interface ParserConfig {
     skipFunctionBodies: boolean;
     /** Preprocessor symbols to define globally */
     preprocessorDefinitions: Set<string>;
+    /**
+     * Symbols that should force both #ifdef and #else branches to be parsed.
+     * Used for dual-context indexing (e.g. Server + Client).
+     */
+    ambiguousDefinitions: Set<string>;
     /** Whether to be lenient with missing semicolons (for external files) */
     lenientSemicolons: boolean;
     /** Whether to suppress stylistic warnings (like unnecessary semicolons) */
@@ -30,6 +35,7 @@ export const defaultConfig: ParserConfig = {
     errorRecovery: true,
     skipFunctionBodies: false,
     preprocessorDefinitions: new Set(),
+    ambiguousDefinitions: new Set(),
     lenientSemicolons: false,
     suppressStylisticWarnings: false,
     ideMode: false
@@ -43,6 +49,7 @@ export const debugConfig: ParserConfig = {
     errorRecovery: true,
     skipFunctionBodies: false,
     preprocessorDefinitions: new Set(),
+    ambiguousDefinitions: new Set(),
     lenientSemicolons: false,
     suppressStylisticWarnings: false,
     ideMode: false
@@ -50,7 +57,7 @@ export const debugConfig: ParserConfig = {
 
 /**
  * Create a custom parser configuration by merging with defaults
- * 
+ *
  * @param overrides Partial configuration to override defaults
  * @returns Complete parser configuration
  */
@@ -63,7 +70,7 @@ export function createConfig(overrides: Partial<ParserConfig>): ParserConfig {
 
 /**
  * Create an IDE-specific parser configuration for completion and diagnostics
- * 
+ *
  * @param overrides Additional configuration to override
  * @returns Complete parser configuration with IDE mode enabled
  */
