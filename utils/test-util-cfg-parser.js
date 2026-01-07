@@ -1,4 +1,4 @@
-const { parseProject } = require('./out/cli');
+const { parseProject } = require('../out/cli');
 const fs = require('fs');
 const path = require('path');
 

@@ -4,7 +4,7 @@
  */
 
 const { TextDocument } = require('vscode-languageserver-textdocument');
-const { ASTPrinter, parseWithDiagnostics } = require('./out/cli');
+const { ASTPrinter, parseWithDiagnostics } = require('../out/cli');
 
 
 

@@ -8,7 +8,7 @@ const path = require('path');
 const { TextDocument } = require('vscode-languageserver-textdocument');
 
 // Import our new parser from compiled JavaScript
-const { parseWithDiagnostics } = require('./out/cli');
+const { parseWithDiagnostics } = require('../out/cli');
 
 const SCRIPTS_DIR = 'P:\\scripts';
 

@@ -10,8 +10,8 @@
 const fs = require('fs');
 
 // Import parser from compiled output
-const { parseEnfusionConfig } = require('./out/cli');
-const { parseImageSet, printEnfusionAST } = require('./out/cli');
+const { parseEnfusionConfig } = require('../out/cli');
+const { parseImageSet, printEnfusionAST } = require('../out/cli');
 
 function showUsage() {
     console.log('Usage: node test-util-enfusion-parser.js <file-path> [options]');
