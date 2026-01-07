@@ -28,7 +28,10 @@
         "clean": "rimraf --glob out server/out **/*.tsbuildinfo",
         "package": "npm run compile:prod && vsce package",
         "publish": "npm run compile:prod && vsce publish",
-        "build-grammar": "js-yaml syntaxes/enscript.yaml > syntaxes/enscript.tmLanguage.json"
+        "build-grammar:enscript": "js-yaml syntaxes/enscript.yaml > syntaxes/enscript.tmLanguage.json",
+        "build-grammar:enfusionconfig": "js-yaml syntaxes/enfusionconfig.yaml > syntaxes/enfusionconfig.tmLanguage.json",
+        "build-grammar:rapfile": "js-yaml syntaxes/rapfile.yaml > syntaxes/rapfile.tmLanguage.json",
+        "build-grammar": "npm run build-grammar:enscript && npm run build-grammar:enfusionconfig && npm run build-grammar:rapfile"
     },
     "dependencies": {
         "bis-toolkit": "^1.0.1",
