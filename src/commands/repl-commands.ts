@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { ReplWebviewManager } from '../repl-webview-manager';
+import { ReplWebviewManager } from '../webviews/repl-webview-webview';
 
 /**
  * Manages REPL-related commands
@@ -54,3 +54,4 @@ export class ReplCommands {
         );
     }
 }
+

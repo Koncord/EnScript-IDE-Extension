@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src {{cspSource}}; script-src 'nonce-{{cspNonce}}'">
+    <title>EnScript REPL</title>
+    <link rel="stylesheet" href="{{styleUri}}">
+</head>
+<body>
+    <div class="header">
+        <div class="connection-status">
+            <span class="status-dot" id="statusDot"></span>
+            <span id="statusText">Disconnected</span>
+        </div>
+        <div class="module-selector">
+            <label for="module">Execute on:</label>
+            <select id="module">
+                <option value="Mission">Mission</option>
+                <option value="World">World</option>
+                <option value="Game">Game</option>
+                <option value="GameLib">GameLib</option>
+                <option value="Core">Core</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="content">
+        <div class="actions">
+            <button id="executeBtn" title="Execute code (Ctrl+Enter)">
+                ▶ Execute
+            </button>
+            <button id="clearInputBtn" class="secondary" title="Clear input">
+                🗑 Clear Input
+            </button>
+        </div>
+
+        <div class="output-section">
+            <div class="output-header">
+                <span>📊 Execution History</span>
+                <span id="executionCount">0 executions</span>
+            </div>
+            <div class="output-content" id="outputContent">
+                <div class="empty-output">No executions yet. Write code in the editor and click Execute.</div>
+            </div>
+        </div>
+    </div>
+
+    <script nonce="{{nonce}}" src="{{scriptUri}}"></script>
+</body>
+</html>

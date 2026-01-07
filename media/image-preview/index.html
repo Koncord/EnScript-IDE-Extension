@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy"
+        content="default-src 'none'; style-src {{cspSource}}; script-src {{cspNonce}};">
+    <title>Image Preview</title>
+    <link rel="stylesheet" href="{{styleUri}}">
+</head>
+<body>
+    <div class="toolbar">
+        <div class="toolbar-group">
+            <span class="info-label">File:</span>
+            <span id="filename-display">Loading...</span>
+        </div>
+        <div class="toolbar-separator"></div>
+        <div class="toolbar-group">
+            <span class="info-label">MIP Level:</span>
+            <select id="mip-select"></select>
+        </div>
+        <div class="toolbar-separator"></div>
+        <div class="toolbar-group">
+            <span class="info-label">Zoom:</span>
+            <button id="zoom-out">−</button>
+            <span id="zoom-level">100%</span>
+            <button id="zoom-in">+</button>
+            <button id="zoom-reset">Reset</button>
+            <button id="zoom-fit">Fit</button>
+        </div>
+    </div>
+    <div class="canvas-container" id="canvas-container">
+        <div class="canvas-wrapper" id="canvas-wrapper">
+            <canvas id="canvas"></canvas>
+        </div>
+    </div>
+    <script nonce="{{nonce}}" src="{{scriptUri}}"></script>
+</body>
+</html>

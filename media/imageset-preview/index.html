@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src {{cspSource}}; script-src {{cspNonce}};">
+    <title>ImageSet Preview</title>
+    <link rel="stylesheet" href="{{styleUri}}">
+</head>
+<body>
+    <div class="toolbar">
+        <div class="toolbar-group">
+            <span class="info-label">Name:</span>
+            <span class="info-value" id="imageset-name">-</span>
+        </div>
+        <div class="toolbar-group">
+            <span class="info-label">Size:</span>
+            <span class="info-value" id="imageset-size">-</span>
+        </div>
+        <div class="toolbar-group">
+            <span class="info-label">Images:</span>
+            <span class="info-value" id="image-count">0</span>
+        </div>
+        <div class="toolbar-group">
+            <span class="info-label">Textures:</span>
+            <span class="info-value" id="texture-count">0</span>
+        </div>
+    </div>
+
+    <div class="content">
+        <div class="preview-panel">
+            <div id="error-container" class="error-message" style="display: none;"></div>
+            <div id="no-texture-container" class="no-texture-message" style="display: none;">
+                <p>Texture file not found or cannot be loaded.</p>
+                <p>The .imageset references: <strong id="texture-path">-</strong></p>
+            </div>
+            <div id="zoom-wrapper" class="zoom-wrapper" style="display: none;">
+                <div id="canvas-wrapper" class="canvas-container">
+                    <canvas id="canvas"></canvas>
+                    <div id="boxes-overlay"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="sidebar">
+            <div class="controls">
+                <div class="control-group">
+                    <label class="control-label">
+                        <input type="checkbox" id="show-boxes" checked> Show Image Regions
+                    </label>
+                </div>
+                <div class="control-group">
+                    <label class="control-label">
+                        <input type="checkbox" id="show-labels" checked> Show Labels
+                    </label>
+                </div>
+                <div class="control-group">
+                    <label class="control-label">Zoom: <span id="zoom-value">100%</span></label>
+                    <input type="range" id="zoom-slider" min="50" max="400" value="100" step="10">
+                </div>
+            </div>
+            
+            <div class="sidebar-header">Image Regions (<span id="sidebar-count">0</span>)</div>
+            <ul class="image-list" id="image-list"></ul>
+        </div>
+    </div>
+
+    <script nonce="{{nonce}}" src="{{scriptUri}}"></script>
+</body>
+</html>

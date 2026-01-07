@@ -1,11 +1,13 @@
 import * as vscode from 'vscode';
 import { LanguageClientManager } from './language-client-manager';
-import { WebviewManager } from './webview-manager';
+import { DocumentationWebview } from './webviews/documentation-webview';
 import { DiagnosticsCommands } from './commands/diagnostics-commands';
 import { IndexCommands } from './commands/index-commands';
 import { ProjectCommands } from './commands/project-commands';
 import { ReplCommands } from './commands/repl-commands';
 import { IncludePathsManager } from './include-paths-manager';
+import { ImagePreviewWebview } from './webviews/image-preview-webview';
+import { ImageSetPreviewProvider } from './webviews/imageset-preview-webview';
 import { configureDayZTools, showFirstTimeSetup } from './dayz-tools-finder';
 import { EnScriptDebugAdapterDescriptorFactory, EnScriptDebugConfigurationProvider } from './debug/debug-adapter-factory';
 
@@ -18,11 +20,17 @@ export async function activate(context: vscode.ExtensionContext) {
     clientManager = new LanguageClientManager(context);
     await clientManager.start();
 
-    WebviewManager.registerCommands(context);
+    DocumentationWebview.registerCommands(context);
     IndexCommands.registerCommands(context, () => clientManager?.getClient());
     DiagnosticsCommands.registerCommands(context, () => clientManager?.getClient());
     ProjectCommands.registerCommands(context, () => clientManager?.getClient());
     ReplCommands.registerCommands(context);
+    
+    // Register image preview for PAA/EDDS files
+    context.subscriptions.push(ImagePreviewWebview.register(context));
+    
+    // Register imageset preview for .imageset files
+    context.subscriptions.push(ImageSetPreviewProvider.register(context));
     
     includePathsManager.setClientGetter(() => clientManager?.getClient());
 
@@ -67,3 +75,5 @@ export async function deactivate(): Promise<void> {
         await clientManager.stop();
     }
 }
+
+

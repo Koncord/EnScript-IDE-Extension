@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
+import { getNonce } from '../util';
 
 /**
  * Manages the REPL webview panel for interactive code execution
@@ -45,7 +46,7 @@ export class ReplWebviewManager {
             vscode.ViewColumn.Two,
             {
                 enableScripts: true,
-                retainContextWhenHidden: true,
+                retainContextWhenHidden: false, // Avoid using this unless absolutely necessary
                 localResourceRoots: []
             }
         );
@@ -54,7 +55,7 @@ export class ReplWebviewManager {
         panel.webview.html = ReplWebviewManager.getHtmlContent(panel.webview);
 
         // Handle messages from webview
-        panel.webview.onDidReceiveMessage(
+        const messageDisposable = panel.webview.onDidReceiveMessage(
             async message => {
                 switch (message.command) {
                     case 'ready':
@@ -95,20 +96,18 @@ export class ReplWebviewManager {
                         }
                         break;
                 }
-            },
-            undefined,
-            context.subscriptions
+            }
         );
+        context.subscriptions.push(messageDisposable);
 
         // Clean up when panel is closed
         panel.onDidDispose(
             () => {
                 ReplWebviewManager.currentPanel = undefined;
+                messageDisposable.dispose();
                 // Note: Closing the editor will prompt for save if document is dirty
                 // This is VS Code's default behavior for untitled documents
-            },
-            null,
-            context.subscriptions
+            }
         );
 
         // Close panel when REPL editor is closed
@@ -124,18 +123,24 @@ export class ReplWebviewManager {
         context.subscriptions.push(closeWatcher);
 
         // Update status bar when active debug session changes
-        vscode.debug.onDidChangeActiveDebugSession((_session) => {
-            ReplWebviewManager.updateConnectionStatus();
-        }, null, context.subscriptions);
+        context.subscriptions.push(
+            vscode.debug.onDidChangeActiveDebugSession((_session) => {
+                ReplWebviewManager.updateConnectionStatus();
+            })
+        );
 
         // Also listen for when debugging starts/stops
-        vscode.debug.onDidStartDebugSession((_session) => {
-            ReplWebviewManager.updateConnectionStatus();
-        }, null, context.subscriptions);
+        context.subscriptions.push(
+            vscode.debug.onDidStartDebugSession((_session) => {
+                ReplWebviewManager.updateConnectionStatus();
+            })
+        );
 
-        vscode.debug.onDidTerminateDebugSession((_session) => {
-            ReplWebviewManager.updateConnectionStatus();
-        }, null, context.subscriptions);
+        context.subscriptions.push(
+            vscode.debug.onDidTerminateDebugSession((_session) => {
+                ReplWebviewManager.updateConnectionStatus();
+            })
+        );
     }
 
     /**
@@ -259,26 +264,24 @@ export class ReplWebviewManager {
     /**
      * Generate HTML content for the webview
      */
-    private static getHtmlContent(_webview: vscode.Webview): string {
-        const templatePath = path.join(ReplWebviewManager.context.extensionPath, 'media', 'repl.html');
+    private static getHtmlContent(webview: vscode.Webview): string {
+        const nonce = getNonce();
+
+        // Get URIs for resources
+        const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(
+            ReplWebviewManager.context.extensionUri, 'media', 'repl', 'script.js'));
+        const styleUri = webview.asWebviewUri(vscode.Uri.joinPath(
+            ReplWebviewManager.context.extensionUri, 'media', 'repl', 'style.css'));
+
+        const templatePath = path.join(ReplWebviewManager.context.extensionPath, 'media', 'repl', 'index.html');
         const template = fs.readFileSync(templatePath, 'utf8');
         
-        const nonce = this.getNonce();
-        
         return template
-            .replace(/{{cspNonce}}/g, nonce)
-            .replace(/{{nonce}}/g, nonce);
-    }
-
-    /**
-     * Generate a nonce for CSP
-     */
-    private static getNonce(): string {
-        let text = '';
-        const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-        for (let i = 0; i < 32; i++) {
-            text += possible.charAt(Math.floor(Math.random() * possible.length));
-        }
-        return text;
+            .replace(/{{cspSource}}/g, webview.cspSource)
+            .replace(/{{cspNonce}}/g, `'nonce-${nonce}'`)
+            .replace(/{{nonce}}/g, nonce)
+            .replace(/{{scriptUri}}/g, scriptUri.toString())
+            .replace(/{{styleUri}}/g, styleUri.toString());
     }
 }
+

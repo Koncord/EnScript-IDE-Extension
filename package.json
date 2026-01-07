@@ -30,6 +30,8 @@
         "publish": "npm run compile:prod && vsce publish"
     },
     "dependencies": {
+        "bis-toolkit": "^1.0.1",
+        "fast-xml-parser": "^5.3.3",
         "inversify": "^7.10.6",
         "marked": "^17.0.1",
         "reflect-metadata": "^0.2.2",
@@ -58,7 +60,9 @@
         "typescript": "^5.9.3",
         "typescript-eslint": "^8.49.0"
     },
-    "activationEvents": [],
+    "activationEvents": [
+        "onCustomEditor:enscript.imagePreview"
+    ],
     "main": "./out/extension.js",
     "contributes": {
         "languages": [
@@ -84,6 +88,18 @@
                     ".hpp"
                 ],
                 "configuration": "./language-configuration.json"
+            },
+            {
+                "id": "enfusionconfig",
+                "aliases": [
+                    "Enfusion Config",
+                    "enfusionconfig"
+                ],
+                "extensions": [
+                    ".imageset",
+                    ".layout"
+                ],
+                "configuration": "./language-configuration.json"
             }
         ],
         "grammars": [
@@ -96,8 +112,18 @@
                 "language": "rapfile",
                 "scopeName": "source.cpp",
                 "path": "./syntaxes/rapfile.tmLanguage.json"
+            },
+            {
+                "language": "enfusionconfig",
+                "scopeName": "source.enfusionconfig",
+                "path": "./syntaxes/enfusionconfig.tmLanguage.json"
             }
         ],
+        "configurationDefaults": {
+            "files.associations": {
+                "*.styles": "xml"
+            }
+        },
         "commands": [
             {
                 "command": "enscript.restartServer",
@@ -137,6 +163,15 @@
                 "title": "Enscript: Execute Selection in REPL"
             },
             {
+                "command": "enscript.openImageSetPreview",
+                "title": "Enscript: Open ImageSet Preview",
+                "icon": "$(open-preview)"
+            },
+            {
+                "command": "enscript.openImageSetPreviewInPlace",
+                "title": "Enscript: Open ImageSet Preview (In Place)"
+            },
+            {
                 "command": "enscript.addIncludePath",
                 "title": "Enscript: Add Include Path",
                 "icon": "$(add)"
@@ -153,6 +188,10 @@
             {
                 "command": "enscript.copyIncludePath",
                 "title": "Copy Path"
+            },
+            {
+                "command": "enscript.openDayZImage",
+                "title": "Enscript: Open DayZ Image (PAA/EDDS)"
             }
         ],
         "views": {
@@ -195,12 +234,48 @@
                     "command": "enscript.executeInRepl",
                     "when": "editorLangId == enscript",
                     "group": "9_cutcopypaste"
+                },
+                {
+                    "command": "enscript.openImageSetPreview",
+                    "when": "resourceExtname == .imageset",
+                    "group": "navigation"
+                }
+            ],
+            "editor/title": [
+                {
+                    "command": "enscript.openImageSetPreview",
+                    "when": "resourceExtname == .imageset",
+                    "group": "navigation"
+                }
+            ],
+            "explorer/context": [
+                {
+                    "command": "enscript.openDayZImage",
+                    "when": "resourceExtname =~ /\\.(paa|edds)$/",
+                    "group": "navigation"
+                },
+                {
+                    "command": "enscript.openImageSetPreview",
+                    "when": "resourceExtname == .imageset",
+                    "group": "navigation"
                 }
             ],
             "commandPalette": [
                 {
                     "command": "enscript.executeInRepl",
                     "when": "editorLangId == enscript"
+                },
+                {
+                    "command": "enscript.openImageSetPreview",
+                    "when": "resourceExtname == .imageset"
+                },
+                {
+                    "command": "enscript.openImageSetPreviewInPlace",
+                    "when": "resourceExtname == .imageset"
+                },
+                {
+                    "command": "enscript.openDayZImage",
+                    "when": "false"
                 }
             ]
         },
@@ -415,6 +490,21 @@
                 "id": "enscript-icons",
                 "label": "Enscript IDE File Icons",
                 "path": "./icons/enscript-icon-theme.json"
+            }
+        ],
+        "customEditors": [
+            {
+                "viewType": "enscript.imagePreview",
+                "displayName": "DayZ Image Preview",
+                "selector": [
+                    {
+                        "filenamePattern": "*.paa"
+                    },
+                    {
+                        "filenamePattern": "*.edds"
+                    }
+                ],
+                "priority": "default"
             }
         ],
         "breakpoints": [
