@@ -1,4 +1,4 @@
-# EnScript IDE by Alpine Team
+# EnScript IDE
 
 [![CI](https://github.com/koncord/enscript-ide-extension/actions/workflows/ci.yml/badge.svg)](https://github.com/koncord/enscript-ide-extension/actions/workflows/ci.yml)
 
