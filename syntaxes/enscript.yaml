@@ -57,7 +57,7 @@ repository:
       - match: \b([a-zA-Z_]\w*)\b\s*(?=\.)
         captures:
           1: { name: variable.other.object.enforce }
-      - match: \b(?!(?:if|else|while|for|foreach|return|switch|case|default|break|continue|new|delete|class|modded|extends|void|true|false|null|this|super|static|private|protected|public|ref|out|inout|autoptr|managed|proto|native)\b)([a-z][a-zA-Z0-9_]*)\b
+      - match: \b(?!(?:if|else|while|for|foreach|return|switch|case|default|break|continue|new|delete|class|modded|extends|void|true|false|null|notnull|this|super|static|private|protected|public|ref|out|inout|autoptr|managed|proto|native|int|float|bool|string|vector|typename|auto|Class|array|map|set)\b)([a-z][a-zA-Z0-9_]*)\b
         name: variable.other.readwrite.enforce
 
   object-creation:
@@ -85,12 +85,68 @@ repository:
       - include: '#storage-types'
       - include: '#typedefs'
       - include: '#keywords'
-      - match: \b([a-zA-Z_]\w+(?:<[^>]+>)?)\s+([a-zA-Z_]\w*)\b
+      - include: '#constants'
+      - include: '#classes'
+      - match: \s+([a-zA-Z_]\w*)(\[\d*\])?(?=\s*[=,\)])
+        captures:
+          1: { name: variable.parameter.enforce }
+          2: { name: punctuation.section.brackets.enforce }
+      - match: \b([a-z][a-zA-Z0-9_]*(?:<[^>]+>)?)\s+([a-zA-Z_]\w*)(\[\d*\])?
         captures:
           1: { name: storage.type.parameter.enforce }
           2: { name: variable.parameter.enforce }
+          3: { name: punctuation.section.brackets.enforce }
       - match: ","
         name: punctuation.separator.parameter.enforce
+
+  documentation-content:
+    patterns:
+      - name: markup.raw.code.enforce
+        begin: (\\|@)code\b
+        end: (\\|@)endcode\b
+        beginCaptures:
+          1: { name: keyword.other.documentation.tag.enforce }
+        endCaptures:
+          1: { name: keyword.other.documentation.tag.enforce }
+        patterns:
+          - name: comment.line.double-slash.enforce
+            match: //.*$
+          - name: string.quoted.other.output.enforce
+            match: ^\s*(>>)(.*)$
+            captures:
+              1: { name: keyword.operator.output.enforce }
+              2: { name: string.quoted.other.output.enforce }
+          - include: '#strings'
+          - include: '#keywords'
+          - include: '#storage-types'
+          - include: '#typedefs'
+          - include: '#constants'
+          - include: '#functions'
+          - include: '#member-access'
+          - include: '#member-variables'
+          - include: '#variable-heuristics'
+          - include: '#variable-declarations'
+          - include: '#object-creation'
+          - include: '#classes'
+          - include: '#operators'
+          - include: '#punctuation'
+      - match: ((\\|@)param)(\s*)(\[)(it|in|out|inout)(\])(\s+)([a-zA-Z_][a-zA-Z0-9_]*)
+        captures:
+          1: { name: keyword.other.documentation.tag.enforce }
+          4: { name: punctuation.section.brackets.enforce }
+          5: { name: storage.modifier.enforce }
+          6: { name: punctuation.section.brackets.enforce }
+          8: { name: variable.parameter.enforce }
+      - match: ((\\|@)param)(\s+)([a-zA-Z_][a-zA-Z0-9_]*)(?=\s|$|(?:\\|@))
+        captures:
+          1: { name: keyword.other.documentation.tag.enforce }
+          4: { name: variable.parameter.enforce }
+      - match: (\\|@)(p|brief|return|returns|see|since|author|version|deprecated|throws|throw|exception|note|warning|todo|example|code|endcode|tparam|template|seealso|sa)\b
+        captures:
+          1: { name: keyword.other.documentation.tag.enforce }
+          2: { name: keyword.other.documentation.tag.enforce }
+      - match: (\\|@)[a-zA-Z]+
+        name: keyword.other.documentation.tag.enforce
 
   comments:
     patterns:
@@ -98,13 +154,12 @@ repository:
         begin: /\*\*
         end: \*/
         patterns:
-          - match: (\\|@)[a-zA-Z]+
-            name: keyword.other.documentation.tag.enforce
-          - match: ((\\|@)param)\s+(\[(in|out|inout)\]\s+)?([a-zA-Z0-9_]+)
-            captures:
-              1: { name: keyword.other.documentation.tag.enforce }
-              3: { name: storage.modifier.enforce }
-              5: { name: variable.parameter.enforce }
+          - include: '#documentation-content'
+      - name: comment.block.documentation.enforce
+        begin: /\*!
+        end: \*/
+        patterns:
+          - include: '#documentation-content'
       - name: comment.block.enforce
         begin: /\*
         end: \*/
@@ -136,11 +191,13 @@ repository:
     patterns:
       - name: constant.character.escape.enforce
         match: \\.
+      - name: variable.parameter.positional.enforce
+        match: '%[1-9]'
 
   constants:
     patterns:
       - name: constant.language.enforce
-        match: \b(true|false|null|INVALID_HANDLE)\b
+        match: \b(true|false|null|NULL)\b
       - name: variable.language.this.enforce
         match: \b(this|super)\b
       - name: support.variable.global.enforce
@@ -161,7 +218,7 @@ repository:
       - name: keyword.control.modifier.enforce
         match: \b(private|protected|static|override|proto|native|owned|external|volatile|const)\b
       - name: storage.modifier.memory.enforce
-        match: \b(ref|autoptr|out|inout)\b
+        match: \b(ref|autoptr|out|inout|notnull)\b
       - name: keyword.control.class.enforce
         match: \b(class|modded|extends|enum|typedef|thread)\b
 
@@ -212,11 +269,14 @@ repository:
       - match: (:\s*)([a-zA-Z_]\w*)
         captures:
           2: { name: entity.name.type.class.inherited.enforce }
-      - match: (<\s*)([a-zA-Z_]\w*)
+      - match: \b([A-Z][a-zA-Z0-9_]*)\s*(<)\s*([a-zA-Z_]\w*)(?=\s*[>,])
         captures:
-          2: { name: storage.type.template.enforce }
-      - match: \b[A-Z][a-zA-Z0-9_]*\b
-        name: support.class.enforce
+          1: { name: support.class.enforce }
+          2: { name: punctuation.section.brackets.enforce }
+          3: { name: storage.type.template.enforce }
+      - match: \b(?!(?:true|false|null|NULL)\b)([A-Z][a-zA-Z0-9_]*)\b
+        captures:
+          1: { name: support.class.enforce }
       - match: \b[A-Z][A-Z0-9_]+\b
         name: constant.other.define.enforce
 
