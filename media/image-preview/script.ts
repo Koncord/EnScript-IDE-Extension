@@ -3,7 +3,7 @@
 interface Mipmap {
     width: number;
     height: number;
-    rgbaBase64: string;
+    rgba: Uint8Array;
 }
 
 interface InitMessage {
@@ -82,13 +82,14 @@ function handleInit(data: { mipmaps: Mipmap[]; filename: string }): void {
     renderMipmap();
 
     // Fit to screen on load if image is larger than viewport
-    setTimeout(() => {
-        const mip = mipmaps[0];
-        if (mip.width > canvasContainer.clientWidth - 40 ||
-            mip.height > canvasContainer.clientHeight - 40) {
-            fitToScreen();
-        }
-    }, 100);
+    const mip = mipmaps[0];
+    if (mip.width > canvasContainer.clientWidth - 40 ||
+        mip.height > canvasContainer.clientHeight - 40) {
+        fitToScreen();
+    }
+    
+    // Show canvas wrapper now that sizing is complete
+    canvasWrapper.classList.add('loaded');
 }
 
 function handleError(data: { message: string }): void {
@@ -121,15 +122,12 @@ function renderMipmap(): void {
         }
     }
 
-    // Decode RGBA data
-    const binaryString = atob(mip.rgbaBase64);
-    const bytes = new Uint8ClampedArray(binaryString.length);
-    for (let i = 0; i < binaryString.length; i++) {
-        bytes[i] = binaryString.charCodeAt(i);
-    }
-
-    // Create ImageData and draw
-    const imageData = new ImageData(bytes, mip.width, mip.height);
+    // Create ImageData from RGBA data
+    const imageData = new ImageData(
+        new Uint8ClampedArray(mip.rgba),
+        mip.width,
+        mip.height
+    );
     ctx.putImageData(imageData, 0, 0);
 
     updateZoom();

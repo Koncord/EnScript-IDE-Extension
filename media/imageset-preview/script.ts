@@ -25,7 +25,7 @@ interface ImageSetData {
     refSize: Size;
     images: ImageEntry[];
     textures: Texture[];
-    textureData?: string;
+    textureData?: Uint8Array;
 }
 
 interface InitMessage {
@@ -147,39 +147,16 @@ function drawCheckerPattern(ctx: CanvasRenderingContext2D, width: number, height
     }
 }
 
-function loadTexture(textureData: string): void {
+function loadTexture(textureData: Uint8Array): void {
     const canvas = document.getElementById('canvas') as HTMLCanvasElement;
     const ctx = canvas.getContext('2d')!;
 
-    // Check if this is RGBA data (will be much larger than base64 image)
-    // RGBA data size = width * height * 4
-    const expectedRGBASize = canvas.width * canvas.height * 4;
-    const decodedSize = textureData.length * 0.75; // Approximate base64 decoded size
-
-    if (Math.abs(decodedSize - expectedRGBASize) < 1000) {
-        // It's RGBA data - decode and render
-        const binaryString = atob(textureData);
-        const len = binaryString.length;
-        const bytes = new Uint8Array(len);
-        for (let i = 0; i < len; i++) {
-            bytes[i] = binaryString.charCodeAt(i);
-        }
-
-        const imageData = new ImageData(
-            new Uint8ClampedArray(bytes),
-            canvas.width,
-            canvas.height
-        );
-
-        ctx.putImageData(imageData, 0, 0);
-    } else {
-        // It's a regular image format (PNG/JPG) - load as image
-        const img = new Image();
-        img.onload = () => {
-            ctx.drawImage(img, 0, 0);
-        };
-        img.src = 'data:image/png;base64,' + textureData;
-    }
+    const imageData = new ImageData(
+        new Uint8ClampedArray(textureData),
+        canvas.width,
+        canvas.height
+    );
+    ctx.putImageData(imageData, 0, 0);
 
     (document.getElementById('no-texture-container') as HTMLElement).style.display = 'none';
 }

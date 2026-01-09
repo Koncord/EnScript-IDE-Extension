@@ -72,7 +72,7 @@ export class ImagePreviewWebview implements vscode.CustomReadonlyEditorProvider<
                     mipmaps: document.mipmaps.map(mip => ({
                         width: mip.width,
                         height: mip.height,
-                        rgbaBase64: Buffer.from(mip.rgba).toString('base64')
+                        rgba: mip.rgba
                     }))
                 });
             }

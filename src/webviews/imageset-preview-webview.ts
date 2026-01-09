@@ -95,7 +95,7 @@ export class ImageSetPreviewProvider implements vscode.CustomTextEditorProvider 
                 return;
             }
 
-            let textureData: string | null = null;
+            let textureData: Uint8Array | null = null;
             if (imageSetData.textures.length > 0) {
                 textureData = await this.loadTexture(uri, imageSetData.textures[0].path);
             }
@@ -127,7 +127,7 @@ export class ImageSetPreviewProvider implements vscode.CustomTextEditorProvider 
         }
     }
 
-    private async loadTexture(imageSetUri: vscode.Uri, texturePath: string): Promise<string | null> {
+    private async loadTexture(imageSetUri: vscode.Uri, texturePath: string): Promise<Uint8Array | null> {
         try {
             // Remove GUID prefix if present: {GUID}path/to/file.edds
             const cleanPath = texturePath.replace(/^\{[^}]+\}/, '');
@@ -185,7 +185,7 @@ export class ImageSetPreviewProvider implements vscode.CustomTextEditorProvider 
             edds.read(fileBuffer);
             if (edds.mipmaps.length > 0) {
                 const rgba = edds.getRgbaPixelData(0); // Get first mipmap
-                return this.rgbaToPngBase64(rgba);
+                return rgba;
             }
 
             return null;
@@ -195,10 +195,7 @@ export class ImageSetPreviewProvider implements vscode.CustomTextEditorProvider 
         }
     }
 
-    private rgbaToPngBase64(rgba: Uint8Array): string {
-        // Send raw RGBA data as base64 - will be converted to ImageData on client side
-        return Buffer.from(rgba).toString('base64');
-    }
+
 
     private getHtmlForWebview(webview: vscode.Webview): string {
         const nonce = getNonce();

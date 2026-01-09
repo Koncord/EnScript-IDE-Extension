@@ -22,6 +22,11 @@ body {
 .canvas-wrapper {
     position: relative;
     cursor: grab;
+    opacity: 0;
+}
+
+.canvas-wrapper.loaded {
+    opacity: 1;
 }
 
 .canvas-wrapper.dragging {
