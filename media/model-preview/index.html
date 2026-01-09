@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy"
+        content="default-src 'none'; style-src {{cspSource}} 'unsafe-inline'; script-src {{cspNonce}}; img-src {{cspSource}} data:;">
+    <title>MLOD Preview</title>
+    <link rel="stylesheet" href="{{commonStyleUri}}">
+    <link rel="stylesheet" href="{{styleUri}}">
+</head>
+
+<body>
+    <div class="container">
+        <main class="viewer-shell">
+            <button id="showPanelBtn" class="show-panel-btn" style="display: none;" title="Show Panel">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="15 18 9 12 15 6"></polyline>
+                </svg>
+            </button>
+            <div class="viewer-container" id="viewer-container">
+                <canvas id="canvas"></canvas>
+            </div>
+
+            <div id="controlsPanel" class="controls overlay">
+                <div class="controls-header">
+                    <h3>Model Viewer</h3>
+                    <button id="controlsToggle" class="controls-toggle-btn" aria-expanded="true" title="Hide Panel">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <polyline points="9 18 15 12 9 6"></polyline>
+                        </svg>
+                    </button>
+                </div>
+
+                <div class="info-section" id="infoPanel">
+                    <h3>Model Info</h3>
+                    <dl class="info__grid">
+                        <div>
+                            <dt>Version</dt>
+                            <dd id="version">-</dd>
+                        </div>
+                        <div>
+                            <dt>LODs</dt>
+                            <dd id="lodCount">-</dd>
+                        </div>
+                        <div>
+                            <dt>Vertices</dt>
+                            <dd id="vertexCount">-</dd>
+                        </div>
+                        <div>
+                            <dt>Faces</dt>
+                            <dd id="faceCount">-</dd>
+                        </div>
+                    </dl>
+
+                    <div class="lod-selector">
+                        <label for="lodSelect">LOD</label>
+                        <select id="lodSelect"></select>
+                    </div>
+
+                    <div class="view-controls">
+                        <button id="wireframeBtn" class="btn">Toggle Wireframe</button>
+                        <button id="resetCameraBtn" class="btn">Reset Camera</button>
+                    </div>
+
+                    <div class="materials-section">
+                        <div class="materials-header">
+                            <h4>Materials</h4>
+                        </div>
+                        <div id="materialList" class="material-list">
+                            <div class="material-list-empty">No materials</div>
+                        </div>
+                    </div>
+
+                    <div class="properties-section">
+                        <div class="properties-header">
+                            <h4>Properties</h4>
+                        </div>
+                        <div id="propertyList" class="property-list">
+                            <div class="property-list-empty">No properties</div>
+                        </div>
+                    </div>
+
+                    <div class="selections-section">
+                        <div class="selections-header">
+                            <h4>Named Selections</h4>
+                        </div>
+                        <div id="selectionList" class="selection-list">
+                            <div class="selection-list-empty">No selections</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Templates -->
+    <template id="material-item-template">
+        <div class="material-item">
+            <div class="material-name"></div>
+            <div class="material-path"></div>
+        </div>
+    </template>
+
+    <template id="selection-item-template">
+        <div class="selection-item">
+            <div class="selection-name"></div>
+            <div class="selection-info"></div>
+        </div>
+    </template>
+
+    <template id="property-row-template">
+        <tr>
+            <td class="property-name"></td>
+            <td class="property-value"></td>
+        </tr>
+    </template>
+
+    <script nonce="{{nonce}}" src="{{scriptUri}}"></script>
+</body>
+
+</html>

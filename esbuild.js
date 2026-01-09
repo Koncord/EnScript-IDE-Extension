@@ -89,6 +89,7 @@ async function main() {
         { in: 'media/image-preview/script.ts', out: 'out/media/image-preview/script.js' },
         { in: 'media/imageset-preview/script.ts', out: 'out/media/imageset-preview/script.js' },
         { in: 'media/repl/script.ts', out: 'out/media/repl/script.js' },
+        { in: 'media/model-preview/script.ts', out: 'out/media/model-preview/script.js' },
     ];
 
     const webviewContexts = await Promise.all(
@@ -101,6 +102,7 @@ async function main() {
             sourcesContent: !production,
             platform: 'browser',
             outfile: script.out,
+            treeShaking: true,
             logLevel: 'silent',
             plugins: [esbuildProblemMatcherPlugin],
         }))

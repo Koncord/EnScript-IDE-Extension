@@ -8,6 +8,7 @@ import { ReplCommands } from './commands/repl-commands';
 import { IncludePathsManager } from './include-paths-manager';
 import { ImagePreviewWebview } from './webviews/image-preview-webview';
 import { ImageSetPreviewProvider } from './webviews/imageset-preview-webview';
+import { ModelPreviewWebview } from './webviews/model-preview-webview';
 import { configureDayZTools, showFirstTimeSetup } from './dayz-tools-finder';
 
 import { registerPreprocessorFeatures } from './preprocessor';
@@ -40,6 +41,9 @@ export async function activate(context: vscode.ExtensionContext) {
     
     // Register imageset preview for .imageset files
     context.subscriptions.push(ImageSetPreviewProvider.register(context));
+
+    // Register model preview for P3D files
+    context.subscriptions.push(ModelPreviewWebview.register(context));
 
     // Register commands to open imageset files
     context.subscriptions.push(
