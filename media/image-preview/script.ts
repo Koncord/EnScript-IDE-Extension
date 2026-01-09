@@ -21,6 +21,14 @@ interface ErrorMessage {
     };
 }
 
+enum CurrentChannel {
+    Rgb = 'rgb',
+    R = 'r',
+    G = 'g',
+    B = 'b',
+    A = 'a'
+}
+
 type Message = InitMessage | ErrorMessage;
 
 const vscode = acquireVsCodeApi();
@@ -31,12 +39,14 @@ let currentZoom = 1.0;
 let isDragging = false;
 let startX: number;
 let startY: number;
+let currentChannel: CurrentChannel = CurrentChannel.Rgb;
 
 const canvas = document.getElementById('canvas') as HTMLCanvasElement;
 const ctx = canvas.getContext('2d', { alpha: true })!;
 const canvasWrapper = document.getElementById('canvas-wrapper') as HTMLDivElement;
 const canvasContainer = document.getElementById('canvas-container') as HTMLDivElement;
 const mipSelect = document.getElementById('mip-select') as HTMLSelectElement;
+const channelSelect = document.getElementById('channel-select') as HTMLSelectElement;
 const zoomLevel = document.getElementById('zoom-level') as HTMLSpanElement;
 const filenameDisplay = document.getElementById('filename-display') as HTMLSpanElement;
 
@@ -45,6 +55,12 @@ document.getElementById('zoom-in')!.addEventListener('click', zoomIn);
 document.getElementById('zoom-out')!.addEventListener('click', zoomOut);
 document.getElementById('zoom-reset')!.addEventListener('click', resetZoom);
 document.getElementById('zoom-fit')!.addEventListener('click', fitToScreen);
+
+// Channel selector
+channelSelect.addEventListener('change', (e) => {
+    currentChannel = (e.target as HTMLSelectElement).value as CurrentChannel;
+    renderMipmap();
+});
 
 // Handle messages from the extension
 window.addEventListener('message', (event: MessageEvent<Message>) => {
@@ -122,15 +138,56 @@ function renderMipmap(): void {
         }
     }
 
-    // Create ImageData from RGBA data
-    const imageData = new ImageData(
-        new Uint8ClampedArray(mip.rgba),
-        mip.width,
-        mip.height
-    );
+    // Create ImageData from RGBA data with channel filtering
+    const imageData = ctx.createImageData(mip.width, mip.height);
+    imageData.data.set(applyChannelFilter(new Uint8ClampedArray(mip.rgba)));
     ctx.putImageData(imageData, 0, 0);
 
     updateZoom();
+}
+
+function applyChannelFilter(rgba: Uint8ClampedArray): Uint8ClampedArray {
+    if (currentChannel === CurrentChannel.Rgb) {
+        return rgba;
+    }
+
+    const filtered = new Uint8ClampedArray(rgba.length);
+    
+    for (let i = 0; i < rgba.length; i += 4) {
+        const r = rgba[i];
+        const g = rgba[i + 1];
+        const b = rgba[i + 2];
+        const a = rgba[i + 3];
+
+        switch (currentChannel) {
+            case CurrentChannel.R:
+                filtered[i] = r;
+                filtered[i + 1] = r;
+                filtered[i + 2] = r;
+                filtered[i + 3] = 255;
+                break;
+            case CurrentChannel.G:
+                filtered[i] = g;
+                filtered[i + 1] = g;
+                filtered[i + 2] = g;
+                filtered[i + 3] = 255;
+                break;
+            case CurrentChannel.B:
+                filtered[i] = b;
+                filtered[i + 1] = b;
+                filtered[i + 2] = b;
+                filtered[i + 3] = 255;
+                break;
+            case CurrentChannel.A:
+                filtered[i] = a;
+                filtered[i + 1] = a;
+                filtered[i + 2] = a;
+                filtered[i + 3] = 255;
+                break;
+        }
+    }
+
+    return filtered;
 }
 
 function updateZoom(): void {
