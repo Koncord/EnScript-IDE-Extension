@@ -7,7 +7,7 @@
     "icon": "icons/logo.png",
     "type": "commonjs",
     "engines": {
-        "vscode": "^1.107.0"
+        "vscode": "^1.105.1"
     },
     "categories": [
         "Programming Languages",
@@ -52,7 +52,7 @@
         "@types/jest": "^30.0.0",
         "@types/node": "^25.0.3",
         "@types/three": "^0.182.0",
-        "@types/vscode": "^1.107.0",
+        "@types/vscode": "^1.105.1",
         "@types/vscode-webview": "^1.57.5",
         "@typescript-eslint/eslint-plugin": "^8.46.3",
         "@typescript-eslint/parser": "^8.46.3",
