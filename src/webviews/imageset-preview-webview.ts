@@ -205,7 +205,7 @@ export class ImageSetPreviewProvider implements vscode.CustomTextEditorProvider 
 
         // Get URIs for resources
         const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(
-            this.context.extensionUri, 'media', 'imageset-preview', 'script.js'));
+            this.context.extensionUri, 'out', 'media', 'imageset-preview', 'script.js'));
         const commonStyleUri = webview.asWebviewUri(vscode.Uri.joinPath(
             this.context.extensionUri, 'media', 'common.css'));
         const styleUri = webview.asWebviewUri(vscode.Uri.joinPath(

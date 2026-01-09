@@ -84,7 +84,7 @@ export class ImagePreviewWebview implements vscode.CustomReadonlyEditorProvider<
         
         // Get URIs for resources
         const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(
-            this.context.extensionUri, 'media', 'image-preview', 'script.js'));
+            this.context.extensionUri, 'out', 'media', 'image-preview', 'script.js'));
         const commonStyleUri = webview.asWebviewUri(vscode.Uri.joinPath(
             this.context.extensionUri, 'media', 'common.css'));
         const styleUri = webview.asWebviewUri(vscode.Uri.joinPath(

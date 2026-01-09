@@ -269,7 +269,7 @@ export class ReplWebviewManager {
 
         // Get URIs for resources
         const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(
-            ReplWebviewManager.context.extensionUri, 'media', 'repl', 'script.js'));
+            ReplWebviewManager.context.extensionUri, 'out', 'media', 'repl', 'script.js'));
         const commonStyleUri = webview.asWebviewUri(vscode.Uri.joinPath(
             ReplWebviewManager.context.extensionUri, 'media', 'common.css'));
         const styleUri = webview.asWebviewUri(vscode.Uri.joinPath(

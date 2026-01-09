@@ -83,14 +83,50 @@ async function main() {
         plugins: [esbuildProblemMatcherPlugin],
     });
 
+    // Build webview scripts
+    const webviewScripts = [
+        { in: 'media/documentation/script.ts', out: 'out/media/documentation/script.js' },
+        { in: 'media/image-preview/script.ts', out: 'out/media/image-preview/script.js' },
+        { in: 'media/imageset-preview/script.ts', out: 'out/media/imageset-preview/script.js' },
+        { in: 'media/repl/script.ts', out: 'out/media/repl/script.js' },
+    ];
+
+    const webviewContexts = await Promise.all(
+        webviewScripts.map(script => context({
+            entryPoints: [script.in],
+            bundle: true,
+            format: 'iife',
+            minify: production,
+            sourcemap: !production ? 'inline' : false,
+            sourcesContent: !production,
+            platform: 'browser',
+            outfile: script.out,
+            logLevel: 'silent',
+            plugins: [esbuildProblemMatcherPlugin],
+        }))
+    );
+
     if (watch) {
-        await Promise.all([clientCtx.watch(), serverCtx.watch(), cliCtx.watch(), debugAdapterCtx.watch()]);
+        await Promise.all([
+            clientCtx.watch(),
+            serverCtx.watch(),
+            cliCtx.watch(),
+            debugAdapterCtx.watch(),
+            ...webviewContexts.map(ctx => ctx.watch())
+        ]);
     } else {
-        await Promise.all([clientCtx.rebuild(), serverCtx.rebuild(), cliCtx.rebuild(), debugAdapterCtx.rebuild()]);
+        await Promise.all([
+            clientCtx.rebuild(),
+            serverCtx.rebuild(),
+            cliCtx.rebuild(),
+            debugAdapterCtx.rebuild(),
+            ...webviewContexts.map(ctx => ctx.rebuild())
+        ]);
         await clientCtx.dispose();
         await serverCtx.dispose();
         await cliCtx.dispose();
         await debugAdapterCtx.dispose();
+        await Promise.all(webviewContexts.map(ctx => ctx.dispose()));
     }
 }
 

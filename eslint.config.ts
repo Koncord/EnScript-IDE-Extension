@@ -22,7 +22,8 @@ export default defineConfig([
       "node_modules/**/*",
       "*.config.js",
       "jest.config.cjs",
-      "esbuild.js"
+      "esbuild.js",
+      "**/*.js"
     ]
   },
   {

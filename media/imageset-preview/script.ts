@@ -1,8 +1,49 @@
-// eslint-disable-next-line no-undef
+/// <reference types="@types/vscode-webview" />
+
+interface Position {
+    x: number;
+    y: number;
+}
+
+interface Size {
+    width: number;
+    height: number;
+}
+
+interface ImageEntry {
+    name: string;
+    pos: Position;
+    size: Size;
+}
+
+interface Texture {
+    path: string;
+}
+
+interface ImageSetData {
+    name: string;
+    refSize: Size;
+    images: ImageEntry[];
+    textures: Texture[];
+    textureData?: string;
+}
+
+interface InitMessage {
+    type: 'init';
+    body: ImageSetData;
+}
+
+interface ErrorMessage {
+    type: 'error';
+    body: string;
+}
+
+type Message = InitMessage | ErrorMessage;
+
 const vscode = acquireVsCodeApi();
 
-let imageSetData = null;
-let selectedImageIndex = null;
+let imageSetData: ImageSetData | null = null;
+let selectedImageIndex: number | null = null;
 let currentZoom = 1.0;
 let isDragging = false;
 let dragStartX = 0;
@@ -11,38 +52,38 @@ let scrollStartX = 0;
 let scrollStartY = 0;
 
 // Handle messages from the extension
-window.addEventListener('message', event => {
+window.addEventListener('message', (event: MessageEvent<Message>) => {
     const message = event.data;
-    
+
     switch (message.type) {
         case 'init':
             imageSetData = message.body;
             initializePreview();
             break;
         case 'error':
-            document.getElementById('error-container').textContent = message.body;
-            document.getElementById('error-container').style.display = 'block';
+            document.getElementById('error-container')!.textContent = message.body;
+            (document.getElementById('error-container') as HTMLElement).style.display = 'block';
             break;
     }
 });
 
-function initializePreview() {
+function initializePreview(): void {
     if (!imageSetData) {
-        document.getElementById('error-container').textContent = 'Failed to parse .imageset file';
-        document.getElementById('error-container').style.display = 'block';
+        document.getElementById('error-container')!.textContent = 'Failed to parse .imageset file';
+        (document.getElementById('error-container') as HTMLElement).style.display = 'block';
         return;
     }
 
     // Update toolbar
-    document.getElementById('imageset-name').textContent = imageSetData.name || '-';
-    document.getElementById('imageset-size').textContent = 
+    document.getElementById('imageset-name')!.textContent = imageSetData.name || '-';
+    document.getElementById('imageset-size')!.textContent =
         `${imageSetData.refSize.width}x${imageSetData.refSize.height}`;
-    document.getElementById('image-count').textContent = imageSetData.images.length;
-    document.getElementById('texture-count').textContent = imageSetData.textures.length;
-    document.getElementById('sidebar-count').textContent = imageSetData.images.length;
+    document.getElementById('image-count')!.textContent = imageSetData.images.length.toString();
+    document.getElementById('texture-count')!.textContent = imageSetData.textures.length.toString();
+    document.getElementById('sidebar-count')!.textContent = imageSetData.images.length.toString();
 
     // Populate image list
-    const imageList = document.getElementById('image-list');
+    const imageList = document.getElementById('image-list')!;
     imageSetData.images.forEach((img, index) => {
         const li = document.createElement('li');
         li.className = 'image-item';
@@ -58,8 +99,8 @@ function initializePreview() {
     });
 
     // Draw canvas with texture placeholder
-    const canvas = document.getElementById('canvas');
-    const ctx = canvas.getContext('2d');
+    const canvas = document.getElementById('canvas') as HTMLCanvasElement;
+    const ctx = canvas.getContext('2d')!;
     canvas.width = imageSetData.refSize.width;
     canvas.height = imageSetData.refSize.height;
 
@@ -70,31 +111,32 @@ function initializePreview() {
     if (imageSetData.textures.length > 0 && imageSetData.textureData) {
         loadTexture(imageSetData.textureData);
     } else if (imageSetData.textures.length > 0) {
-        document.getElementById('texture-path').textContent = imageSetData.textures[0].path;
-        document.getElementById('no-texture-container').style.display = 'block';
+        document.getElementById('texture-path')!.textContent = imageSetData.textures[0].path;
+        (document.getElementById('no-texture-container') as HTMLElement).style.display = 'block';
     }
 
-    document.getElementById('zoom-wrapper').style.display = 'inline-block';
+    (document.getElementById('zoom-wrapper') as HTMLElement).style.display = 'inline-block';
 
     // Draw image boxes
     renderBoxes();
 
     // Set up controls
-    document.getElementById('show-boxes').addEventListener('change', renderBoxes);
-    document.getElementById('show-labels').addEventListener('change', renderBoxes);
-    document.getElementById('zoom-slider').addEventListener('input', (e) => {
-        currentZoom = e.target.value / 100;
-        document.getElementById('zoom-value').textContent = e.target.value + '%';
+    document.getElementById('show-boxes')!.addEventListener('change', renderBoxes);
+    document.getElementById('show-labels')!.addEventListener('change', renderBoxes);
+    document.getElementById('zoom-slider')!.addEventListener('input', (e) => {
+        const value = (e.target as HTMLInputElement).value;
+        currentZoom = parseInt(value) / 100;
+        document.getElementById('zoom-value')!.textContent = value + '%';
         applyZoom();
         renderBoxes(); // Re-render boxes to update label scaling
     });
 }
 
-function drawCheckerPattern(ctx, width, height) {
+function drawCheckerPattern(ctx: CanvasRenderingContext2D, width: number, height: number): void {
     const squareSize = 16;
     ctx.fillStyle = '#333';
     ctx.fillRect(0, 0, width, height);
-    
+
     ctx.fillStyle = '#444';
     for (let y = 0; y < height; y += squareSize) {
         for (let x = 0; x < width; x += squareSize) {
@@ -105,15 +147,15 @@ function drawCheckerPattern(ctx, width, height) {
     }
 }
 
-function loadTexture(textureData) {
-    const canvas = document.getElementById('canvas');
-    const ctx = canvas.getContext('2d');
-    
+function loadTexture(textureData: string): void {
+    const canvas = document.getElementById('canvas') as HTMLCanvasElement;
+    const ctx = canvas.getContext('2d')!;
+
     // Check if this is RGBA data (will be much larger than base64 image)
     // RGBA data size = width * height * 4
     const expectedRGBASize = canvas.width * canvas.height * 4;
     const decodedSize = textureData.length * 0.75; // Approximate base64 decoded size
-    
+
     if (Math.abs(decodedSize - expectedRGBASize) < 1000) {
         // It's RGBA data - decode and render
         const binaryString = atob(textureData);
@@ -122,13 +164,13 @@ function loadTexture(textureData) {
         for (let i = 0; i < len; i++) {
             bytes[i] = binaryString.charCodeAt(i);
         }
-        
+
         const imageData = new ImageData(
             new Uint8ClampedArray(bytes),
             canvas.width,
             canvas.height
         );
-        
+
         ctx.putImageData(imageData, 0, 0);
     } else {
         // It's a regular image format (PNG/JPG) - load as image
@@ -138,17 +180,19 @@ function loadTexture(textureData) {
         };
         img.src = 'data:image/png;base64,' + textureData;
     }
-    
-    document.getElementById('no-texture-container').style.display = 'none';
+
+    (document.getElementById('no-texture-container') as HTMLElement).style.display = 'none';
 }
 
-function renderBoxes() {
-    const overlay = document.getElementById('boxes-overlay');
-    const showBoxes = document.getElementById('show-boxes').checked;
-    const showLabels = document.getElementById('show-labels').checked;
-    
+function renderBoxes(): void {
+    if (!imageSetData) return;
+
+    const overlay = document.getElementById('boxes-overlay')!;
+    const showBoxes = (document.getElementById('show-boxes') as HTMLInputElement).checked;
+    const showLabels = (document.getElementById('show-labels') as HTMLInputElement).checked;
+
     overlay.innerHTML = '';
-    
+
     if (!showBoxes) return;
 
     imageSetData.images.forEach((img, index) => {
@@ -157,12 +201,12 @@ function renderBoxes() {
         if (index === selectedImageIndex) {
             box.classList.add('selected');
         }
-        
+
         box.style.left = img.pos.x + 'px';
         box.style.top = img.pos.y + 'px';
         box.style.width = img.size.width + 'px';
         box.style.height = img.size.height + 'px';
-        
+
         if (showLabels) {
             const label = document.createElement('div');
             label.className = 'image-box-label';
@@ -173,43 +217,43 @@ function renderBoxes() {
             label.style.top = `${-18 / currentZoom}px`;
             box.appendChild(label);
         }
-        
+
         box.addEventListener('click', (e) => {
             e.stopPropagation();
             selectImage(index);
         });
-        
+
         overlay.appendChild(box);
     });
 }
 
-function selectImage(index) {
+function selectImage(index: number): void {
     selectedImageIndex = index;
-    
+
     // Update sidebar selection
     const items = document.querySelectorAll('.image-item');
     items.forEach((item, i) => {
         item.classList.toggle('selected', i === index);
     });
-    
+
     // Update boxes
     renderBoxes();
-    
+
     // Scroll to selected item
     if (items[index]) {
         items[index].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
 }
 
-function applyZoom() {
-    const zoomWrapper = document.getElementById('zoom-wrapper');
-    const wrapper = document.getElementById('canvas-wrapper');
-    const canvas = document.getElementById('canvas');
-    
+function applyZoom(): void {
+    const zoomWrapper = document.getElementById('zoom-wrapper') as HTMLElement;
+    const wrapper = document.getElementById('canvas-wrapper') as HTMLElement;
+    const canvas = document.getElementById('canvas') as HTMLCanvasElement;
+
     // Scale the wrapper visually
     wrapper.style.transform = `scale(${currentZoom})`;
     wrapper.style.transformOrigin = 'top left';
-    
+
     // Adjust the zoom-wrapper size to match the scaled content
     // This creates the scrollable area
     const scaledWidth = canvas.width * currentZoom;
@@ -218,15 +262,15 @@ function applyZoom() {
     zoomWrapper.style.height = scaledHeight + 'px';
 }
 
-function setupDragNavigation() {
-    const previewPanel = document.querySelector('.preview-panel');
+function setupDragNavigation(): void {
+    const previewPanel = document.querySelector('.preview-panel') as HTMLElement | null;
     const zoomWrapper = document.getElementById('zoom-wrapper');
     if (!previewPanel || !zoomWrapper) return;
-    
-    const handleMouseDown = (e) => {
+
+    const handleMouseDown = (e: MouseEvent) => {
         // Only drag if clicking on the zoom wrapper or canvas (not boxes)
-        if (e.target.closest('.image-box')) return;
-        
+        if ((e.target as HTMLElement).closest('.image-box')) return;
+
         isDragging = true;
         dragStartX = e.clientX;
         dragStartY = e.clientY;
@@ -236,12 +280,12 @@ function setupDragNavigation() {
         e.preventDefault();
     };
 
-    const handleMouseMove = (e) => {
+    const handleMouseMove = (e: MouseEvent) => {
         if (!isDragging) return;
-        
+
         const dx = e.clientX - dragStartX;
         const dy = e.clientY - dragStartY;
-        
+
         previewPanel.scrollLeft = scrollStartX - dx;
         previewPanel.scrollTop = scrollStartY - dy;
     };
@@ -263,3 +307,5 @@ setupDragNavigation();
 
 // Signal that the webview is ready to receive data
 vscode.postMessage({ type: 'ready' });
+
+export { };
