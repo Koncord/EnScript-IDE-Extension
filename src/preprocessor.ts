@@ -11,7 +11,7 @@ import * as vscode from 'vscode';
  * remains collapsible and navigable even in complex, heavily preprocessed files.
  */
 class EnScriptFoldingProvider implements vscode.FoldingRangeProvider {
-    provideFoldingRanges(document: vscode.TextDocument, context: vscode.FoldingContext, token: vscode.CancellationToken): vscode.FoldingRange[] {
+    provideFoldingRanges(document: vscode.TextDocument, _context: vscode.FoldingContext, _token: vscode.CancellationToken): vscode.FoldingRange[] {
         const ranges: vscode.FoldingRange[] = [];
         const bracketStack: number[] = [];
         const regionStack: number[] = [];
@@ -39,7 +39,7 @@ class EnScriptFoldingProvider implements vscode.FoldingRangeProvider {
 
             // Handle structural blocks {}
             const lineClean = stripCommentsAndStrings(lineOriginal);
-            for (let char of lineClean) {
+            for (const char of lineClean) {
                 if (char === '{') {
                     bracketStack.push(i);
                 } else if (char === '}') {

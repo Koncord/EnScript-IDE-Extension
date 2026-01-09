@@ -129,8 +129,8 @@ export class AstyleFormatter implements vscode.DocumentFormattingEditProvider {
                     break;
 
                 case DIFF_DELETE:
-                    let endLine = line + lineCount;
-                    let endChar = (lineCount === 0 ? character : 0) + lastLineLength;
+                    const endLine = line + lineCount;
+                    const endChar = (lineCount === 0 ? character : 0) + lastLineLength;
                     const end = new vscode.Position(endLine, endChar);
 
                     edits.push(vscode.TextEdit.delete(new vscode.Range(start, end)));
