@@ -92,7 +92,8 @@
                 ],
                 "extensions": [
                     ".cpp",
-                    ".hpp"
+                    ".hpp",
+                    ".rvmat"
                 ],
                 "configuration": "./language-configuration.json"
             },
@@ -195,10 +196,6 @@
             {
                 "command": "enscript.copyIncludePath",
                 "title": "Copy Path"
-            },
-            {
-                "command": "enscript.openDayZImage",
-                "title": "Enscript: Open DayZ Image (PAA/EDDS)"
             }
         ],
         "views": {
@@ -257,11 +254,6 @@
             ],
             "explorer/context": [
                 {
-                    "command": "enscript.openDayZImage",
-                    "when": "resourceExtname =~ /\\.(paa|edds)$/",
-                    "group": "navigation"
-                },
-                {
                     "command": "enscript.openImageSetPreview",
                     "when": "resourceExtname == .imageset",
                     "group": "navigation"
@@ -279,10 +271,6 @@
                 {
                     "command": "enscript.openImageSetPreviewInPlace",
                     "when": "resourceExtname == .imageset"
-                },
-                {
-                    "command": "enscript.openDayZImage",
-                    "when": "false"
                 }
             ]
         },
