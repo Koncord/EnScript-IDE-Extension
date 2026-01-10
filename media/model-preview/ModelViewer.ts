@@ -148,7 +148,10 @@ export class ModelViewer {
     }
 
     private displayModel(model: Mlod, lodIndex: number): void {
-        const currentMeshRef = { current: this.currentMesh };
+        const currentMeshRef = { 
+            current: this.currentMesh,
+            createMeshFn: () => this.createMesh(model.lods[lodIndex])
+        };
 
         // Clear selection when switching LODs
         this.clearSelection();
@@ -158,10 +161,7 @@ export class ModelViewer {
             if (!model.lods[lodIndex])
                 throw new Error(`LOD ${lodIndex} not found`);
 
-            this.sceneManager.displayModel({
-                current: this.currentMesh,
-                createMeshFn: () => this.createMesh(model.lods[lodIndex])
-            });
+            this.sceneManager.displayModel(currentMeshRef);
 
             this.onLodUpdate(model, lodIndex);
 
