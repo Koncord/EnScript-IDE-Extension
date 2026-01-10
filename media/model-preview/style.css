@@ -237,7 +237,10 @@
 .property-table {
     width: 100%;
     font-size: 11px;
-    border-collapse: collapse;
+    border-collapse: separate;
+    border-spacing: 0;
+    border-radius: 4px;
+    overflow: hidden;
 }
 
 .property-table tr:nth-child(odd) {
