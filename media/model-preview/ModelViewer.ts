@@ -9,20 +9,6 @@ import { isProceduralTexture } from './proceduralTextures';
 import { MeshPhysicalMaterial } from 'three';
 import { ResourceLoader } from './ResourceLoader';
 
-/**
- * Helper to get selected indices from boolean array
- * (getSelectedIndices is not exported from @bis-toolkit/p3d package)
- */
-function getSelectedIndices(boolArray: boolean[]): number[] {
-    const indices: number[] = [];
-    for (let i = 0; i < boolArray.length; i++) {
-        if (boolArray[i]) {
-            indices.push(i);
-        }
-    }
-    return indices;
-}
-
 export class ModelViewer {
     private sceneManager: SceneManager;
     private dom: IDomElements;
@@ -353,7 +339,7 @@ export class ModelViewer {
         const selectionTagg = namedSelectionTaggs.find(tagg => tagg.name === selectionName);
         if (!selectionTagg) return;
 
-        const selectedVertexIndices = getSelectedIndices(selectionTagg.points);
+        const selectedVertexIndices = MLOD.getSelectedIndices(selectionTagg.points);
         if (selectedVertexIndices.length === 0) {
             console.warn('No vertices in selection:', selectionName);
             return;
@@ -390,7 +376,7 @@ export class ModelViewer {
         this.sceneManager.scene.add(this.selectionPoints);
 
         // Create face mesh for selected faces
-        const selectedFaceIndices = getSelectedIndices(selectionTagg.faces);
+        const selectedFaceIndices = MLOD.getSelectedIndices(selectionTagg.faces);
         if (selectedFaceIndices.length > 0) {
             const facePositions: number[] = [];
             const faceIndices: number[] = [];
