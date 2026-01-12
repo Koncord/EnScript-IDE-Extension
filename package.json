@@ -34,7 +34,7 @@
         "build-grammar": "npm run build-grammar:enscript && npm run build-grammar:enfusionconfig && npm run build-grammar:rapfile"
     },
     "dependencies": {
-        "bis-toolkit": "^1.0.1",
+        "bis-toolkit": "^1.0.2",
         "diff-match-patch": "^1.0.5",
         "fast-xml-parser": "^5.3.3",
         "inversify": "^7.10.6",
