@@ -59,6 +59,46 @@ select:focus {
     outline: 1px solid var(--vscode-focusBorder);
 }
 
+/* Form Controls - Checkbox */
+input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+    accent-color: var(--vscode-button-background);
+}
+
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    user-select: none;
+}
+
+.checkbox-label:hover {
+    opacity: 0.9;
+}
+
+/* Form Controls - Checkbox */
+input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+    accent-color: var(--vscode-button-background);
+}
+
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    user-select: none;
+}
+
+.checkbox-label:hover {
+    opacity: 0.9;
+}
+
 /* Links */
 a {
     color: var(--vscode-textLink-foreground);
@@ -91,6 +131,7 @@ a:hover {
 /* Toolbar Components */
 .toolbar {
     display: flex;
+    flex-wrap: wrap;
     gap: 12px;
     padding: 8px 16px;
     background-color: var(--vscode-sideBar-background);

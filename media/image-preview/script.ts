@@ -40,6 +40,7 @@ let isDragging = false;
 let startX: number;
 let startY: number;
 let currentChannel: CurrentChannel = CurrentChannel.Rgb;
+let autoFitEnabled = true;
 
 const canvas = document.getElementById('canvas') as HTMLCanvasElement;
 const ctx = canvas.getContext('2d', { alpha: true })!;
@@ -49,12 +50,21 @@ const mipSelect = document.getElementById('mip-select') as HTMLSelectElement;
 const channelSelect = document.getElementById('channel-select') as HTMLSelectElement;
 const zoomLevel = document.getElementById('zoom-level') as HTMLSpanElement;
 const filenameDisplay = document.getElementById('filename-display') as HTMLSpanElement;
+const autoFitCheckbox = document.getElementById('auto-fit-checkbox') as HTMLInputElement;
 
 // Attach button event listeners
 document.getElementById('zoom-in')!.addEventListener('click', zoomIn);
 document.getElementById('zoom-out')!.addEventListener('click', zoomOut);
 document.getElementById('zoom-reset')!.addEventListener('click', resetZoom);
 document.getElementById('zoom-fit')!.addEventListener('click', fitToScreen);
+
+// Auto-fit checkbox
+autoFitCheckbox.addEventListener('change', (e) => {
+    autoFitEnabled = (e.target as HTMLInputElement).checked;
+    if (autoFitEnabled) {
+        fitToScreen();
+    }
+});
 
 // Channel selector
 channelSelect.addEventListener('change', (e) => {
@@ -199,16 +209,22 @@ function updateZoom(): void {
 }
 
 function zoomIn(): void {
+    autoFitEnabled = false;
+    autoFitCheckbox.checked = false;
     currentZoom = Math.min(currentZoom * 1.2, 32);
     updateZoom();
 }
 
 function zoomOut(): void {
+    autoFitEnabled = false;
+    autoFitCheckbox.checked = false;
     currentZoom = Math.max(currentZoom / 1.2, 0.1);
     updateZoom();
 }
 
 function resetZoom(): void {
+    autoFitEnabled = false;
+    autoFitCheckbox.checked = false;
     currentZoom = 1.0;
     updateZoom();
 }
@@ -222,6 +238,14 @@ function fitToScreen(): void {
     currentZoom = Math.min(scaleX, scaleY, 1);
     updateZoom();
 }
+
+// Resize observer for auto-fit on viewport changes
+const resizeObserver = new ResizeObserver(() => {
+    if (autoFitEnabled && mipmaps.length > 0) {
+        fitToScreen();
+    }
+});
+resizeObserver.observe(canvasContainer);
 
 // Mouse wheel zoom
 canvasContainer.addEventListener('wheel', (e) => {
