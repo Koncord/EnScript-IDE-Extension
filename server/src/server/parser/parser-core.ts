@@ -43,6 +43,7 @@ import {
     ExpressionStatement,
     CallExpression
 } from '../ast/node-types';
+import { parser } from 'marked';
 
 /**
  * Preprocessor condition types
@@ -52,6 +53,8 @@ type PreprocessorCondition = {
     symbol: string;
     isTrue: boolean;
     isAmbiguous: boolean;
+    line: number;
+    character: number;
 };
 
 export class Parser {
@@ -117,12 +120,25 @@ export class Parser {
      * Create a Parser with preprocessor-aware lexing
      */
     static createWithPreprocessor(document: TextDocument, sourceCode: string, config: ParserConfig): Parser {
-        const tokens = lexWithPreprocessor(sourceCode, {
-            definedSymbols: config.preprocessorDefinitions,
+        const { tokens, unclosedDirectives } = lexWithPreprocessor(sourceCode, {
+            definedSymbols: new Set(config.preprocessorDefinitions),
             includePreprocessorTokens: false
         });
 
-        return new Parser(document, tokens, config);
+        const parser = new Parser(document, tokens, config);
+        
+        // HACK: Report unclosed preprocessor directives from the lexer
+        for (const unclosedDirective of unclosedDirectives) {
+            const error = new ParseError(
+                document.uri,
+                unclosedDirective.line,
+                unclosedDirective.character,
+                `Unclosed preprocessor directive '#${unclosedDirective.type} ${unclosedDirective.symbol}' - missing '#endif' at end of file.`
+            );
+            parser.parseErrors.push(error);
+        }
+        
+        return parser;
     }
 
     /**
@@ -306,9 +322,13 @@ export class Parser {
             file.end = file.body[file.body.length - 1].end;
         }
 
+        // HACK: Check for unclosed preprocessor directives
+        const hasUnclosedDirectives = this.getParseErrors().some(err => err.message.includes('Unclosed preprocessor directive'));
+
         // Check for empty file - indicates catastrophic parsing failure
         // Only flag as empty if the file seems to contain declaration-like content but failed to parse
-        if (file.body.length === 0 && this.shouldFlagAsEmptyFile()) {
+        // Skip this check if we have unclosed preprocessor directives (they explain why the file is empty)
+        if (file.body.length === 0 && !hasUnclosedDirectives && this.shouldFlagAsEmptyFile()) {
             if (!this.tokenStream.eof()) {
                 // File has content but parser couldn't recover anything meaningful
                 const warning = new ParseWarning(
@@ -393,7 +413,9 @@ export class Parser {
         const startsWithConditional = /^#(ifdef|ifndef|if)\b/.test(firstLine);
         const endsWithEndif = /^#endif\b/.test(lastLine);
 
-        return startsWithConditional && endsWithEndif;
+        // Also accept files that start with conditional but are missing #endif
+        // (this is an error that will be reported separately)
+        return startsWithConditional && (endsWithEndif || this.preprocessorStack.length > 0);
     }
 
     /**
@@ -2190,11 +2212,14 @@ export class Parser {
             // If ambiguous, it's ALWAYS true for parsing purposes
             const isTrue = isAmbiguous || isDefined;
 
+            const { line, character } = this.getErrorPosition(token.start);
             this.preprocessorStack.push({
                 type: 'ifdef',
                 symbol,
                 isTrue,
-                isAmbiguous
+                isAmbiguous,
+                line,
+                character
             });
 
         } else if (directive.startsWith('#ifndef ')) {
@@ -2207,11 +2232,14 @@ export class Parser {
             // If not ambiguous, standard logic applies (!isDefined)
             const isTrue = isAmbiguous || !isDefined;
 
+            const { line, character } = this.getErrorPosition(token.start);
             this.preprocessorStack.push({
                 type: 'ifndef',
                 symbol,
                 isTrue,
-                isAmbiguous
+                isAmbiguous,
+                line,
+                character
             });
 
         } else if (directive === '#else') {

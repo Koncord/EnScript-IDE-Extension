@@ -25,10 +25,20 @@ export interface PreprocessorLexerConfig {
     includePreprocessorTokens: boolean;
 }
 
+export interface PreprocessorLexerResult {
+    tokens: Token[];
+    unclosedDirectives: Array<{
+        type: 'ifdef' | 'ifndef' | 'if';
+        symbol: string;
+        line: number;
+        character: number;
+    }>;
+}
+
 /**
- * Preprocessor-aware lexer that evaluates conditional compilation during tokenization
+ * Preprocessor-aware lexer that returns detailed information including unclosed directives
  */
-export function lexWithPreprocessor(text: string, config: PreprocessorLexerConfig): Token[] {
+export function lexWithPreprocessor(text: string, config: PreprocessorLexerConfig): PreprocessorLexerResult {
     const toks: Token[] = [];
     let i = 0;
 
@@ -36,10 +46,28 @@ export function lexWithPreprocessor(text: string, config: PreprocessorLexerConfi
     const preprocessorStack: PreprocessorState[] = [];
     const definedSymbols = new Set(config.definedSymbols);
 
+    // Track positions of directives for error reporting
+    const directivePositions = new Map<PreprocessorState, { line: number; character: number }>();
+
     const push = (kind: TokenKind, value: string, start: number) => {
-        // FIXED: Calculate end position from start + value length instead of using `i`
-        // The `i` variable in the outer scope hasn't been updated yet when push is called
         toks.push({ kind, value, start, end: start + value.length });
+    };
+
+    /**
+     * Calculate line and character position from byte offset
+     */
+    const calculatePosition = (text: string, offset: number): { line: number; character: number } => {
+        let line = 1;
+        let character = 1;
+        for (let pos = 0; pos < offset && pos < text.length; pos++) {
+            if (text[pos] === '\n') {
+                line++;
+                character = 1;
+            } else {
+                character++;
+            }
+        }
+        return { line, character };
     };
 
     /**
@@ -56,6 +84,9 @@ export function lexWithPreprocessor(text: string, config: PreprocessorLexerConfi
         const directiveEnd = i;
         const directive = text.slice(start, directiveEnd).trim();
 
+        // Calculate line and character position
+        const position = calculatePosition(text, start);
+
         // Include preprocessor token in output if requested
         if (config.includePreprocessorTokens) {
             push(TokenKind.Preproc, directive, start);
@@ -65,12 +96,14 @@ export function lexWithPreprocessor(text: string, config: PreprocessorLexerConfi
         if (directive.startsWith('#ifdef ')) {
             const symbol = directive.substring(7).trim();
             const isActive = definedSymbols.has(symbol);
-            preprocessorStack.push({
-                type: 'ifdef',
+            const state = {
+                type: 'ifdef' as const,
                 symbol,
                 isActive,
                 hasMatchedBranch: isActive
-            });
+            };
+            preprocessorStack.push(state);
+            directivePositions.set(state, position);
             return;
         }
 
@@ -78,12 +111,14 @@ export function lexWithPreprocessor(text: string, config: PreprocessorLexerConfi
         if (directive.startsWith('#ifndef ')) {
             const symbol = directive.substring(8).trim();
             const isActive = !definedSymbols.has(symbol);
-            preprocessorStack.push({
-                type: 'ifndef',
+            const state = {
+                type: 'ifndef' as const,
                 symbol,
                 isActive,
                 hasMatchedBranch: isActive
-            });
+            };
+            preprocessorStack.push(state);
+            directivePositions.set(state, position);
             return;
         }
 
@@ -196,7 +231,21 @@ export function lexWithPreprocessor(text: string, config: PreprocessorLexerConfi
     }
 
     push(TokenKind.EOF, '', i);
-    return toks;
+
+    const unclosedDirectives = preprocessorStack.map(state => {
+        const pos = directivePositions.get(state) || { line: 1, character: 1 };
+        return {
+            type: state.type,
+            symbol: state.symbol,
+            line: pos.line,
+            character: pos.character
+        };
+    });
+
+    return {
+        tokens: toks,
+        unclosedDirectives
+    };
 }
 
 /**
@@ -207,5 +256,5 @@ export function lex(text: string): Token[] {
     return lexWithPreprocessor(text, {
         definedSymbols: new Set(),
         includePreprocessorTokens: true
-    });
+    }).tokens;
 }
