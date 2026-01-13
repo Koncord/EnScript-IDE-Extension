@@ -25,7 +25,7 @@ export class NotificationService implements INotificationService {
 
     public sendLSPReadyNotification(): void {
         this.sendNotification('enscript/ready', {
-            message: 'Enscript Language Server is ready.'
+            message: '$(check) Enscript Language Server is ready.'
         });
     }
 

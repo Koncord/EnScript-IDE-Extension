@@ -1,6 +1,10 @@
 # EnScript IDE
 
 [![CI](https://github.com/koncord/enscript-ide-extension/actions/workflows/ci.yml/badge.svg)](https://github.com/koncord/enscript-ide-extension/actions/workflows/ci.yml)
+[![Discord](https://img.shields.io/discord/1459276975666630910?color=7289da&label=Discord&logo=discord&logoColor=white)](https://discord.gg/9w7q5hGZXr)
+[![Visual Studio Marketplace Downloads](https://img.shields.io/visual-studio-marketplace/d/AlpineTeam.enscript-ide)](https://marketplace.visualstudio.com/items?itemName=AlpineTeam.enscript-ide)
+[![Visual Studio Marketplace Version](https://img.shields.io/visual-studio-marketplace/v/AlpineTeam.enscript-ide)](https://marketplace.visualstudio.com/items?itemName=AlpineTeam.enscript-ide)
+[![GitHub License](https://img.shields.io/github/license/Koncord/EnScript-IDE-Extension)](LICENSE)
 
 Inspired by yuvalno's [Enfusion Script extension](https://github.com/yuvalino/enscript)
 

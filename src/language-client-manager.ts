@@ -161,7 +161,10 @@ export class LanguageClientManager {
 
         // Handle server ready notification
         this.client.onNotification('enscript/ready', (params: { message: string }) => {
-            vscode.window.showInformationMessage(params.message);
+            this.clearStatusBarTimeout();
+            this.statusBarItem.text = params.message
+            this.statusBarItem.show();
+            this.scheduleStatusBarHide(5000);
         });
 
         // Handle diagnostic progress notifications

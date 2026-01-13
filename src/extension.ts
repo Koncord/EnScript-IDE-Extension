@@ -35,10 +35,10 @@ export async function activate(context: vscode.ExtensionContext) {
     DiagnosticsCommands.registerCommands(context, () => clientManager?.getClient());
     ProjectCommands.registerCommands(context, () => clientManager?.getClient());
     ReplCommands.registerCommands(context);
-    
+
     // Register image preview for PAA/EDDS files
     context.subscriptions.push(ImagePreviewWebview.register(context));
-    
+
     // Register imageset preview for .imageset files
     context.subscriptions.push(ImageSetPreviewProvider.register(context));
 
@@ -98,7 +98,28 @@ export async function activate(context: vscode.ExtensionContext) {
         // Delay to avoid interfering with extension startup
         setTimeout(() => {
             showFirstTimeSetup();
+            showDiscordInvite(context);
         }, 2000);
+    }
+}
+
+async function showDiscordInvite(context: vscode.ExtensionContext) {
+    const DISCORD_INVITE_SHOWN_KEY = 'enscript.discordInviteShown';
+    const hasShownInvite = context.globalState.get<boolean>(DISCORD_INVITE_SHOWN_KEY, false);
+    if (!hasShownInvite) {
+        const action = await vscode.window.showInformationMessage(
+            'Join our Discord community to get help, and stay updated with EnScript IDE!',
+            'Join Discord',
+            'Later',
+            'No Thanks'
+        );
+
+        if (action === 'Join Discord') {
+            vscode.env.openExternal(vscode.Uri.parse('https://discord.gg/9w7q5hGZXr'));
+            await context.globalState.update(DISCORD_INVITE_SHOWN_KEY, true);
+        } else if (action === 'No Thanks') {
+            await context.globalState.update(DISCORD_INVITE_SHOWN_KEY, true);
+        }
     }
 }
 
