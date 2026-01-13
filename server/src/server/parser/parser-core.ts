@@ -43,7 +43,6 @@ import {
     ExpressionStatement,
     CallExpression
 } from '../ast/node-types';
-import { parser } from 'marked';
 
 /**
  * Preprocessor condition types
