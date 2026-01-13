@@ -4,7 +4,7 @@ import {
     DiagnosticRuleResult
 } from '../rules';
 import { ASTNode, ClassDeclNode, FunctionDeclNode, MethodDeclNode, VarDeclNode } from '../../ast';
-import { DeclarationStatement } from '../../ast/node-types';
+import { DeclarationStatement, ForEachStatement, ForStatement } from '../../ast/node-types';
 import { UndeclaredEntityRule } from './undeclared-entity-base';
 import { isFunction, isMethod, isVarDecl } from '../../../util';
 import { BaseASTVisitor } from '../../ast/ast-visitor';
@@ -227,7 +227,7 @@ class LocalVariableVisitor extends BaseASTVisitor<void> {
         // Don't call super - we already handled the declarations above
     }
 
-    protected visitForEachStatement(node: any): void {
+    protected visitForEachStatement(node: ForEachStatement): void {
         // Add foreach loop variables (they are function-scoped in EnScript)
         if (Array.isArray(node.variables)) {
             for (const variable of node.variables) {
@@ -246,7 +246,7 @@ class LocalVariableVisitor extends BaseASTVisitor<void> {
         }
     }
 
-    protected visitForStatement(node: any): void {
+    protected visitForStatement(node: ForStatement): void {
         // Visit initializer - for loop variables are function-scoped
         if (node.init) {
             // The init can be either a VarDeclNode or a DeclarationStatement

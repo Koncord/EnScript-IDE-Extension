@@ -3,7 +3,6 @@ import {
     setupDiagnosticTestContainer,
     runDiagnosticRule,
     expectDiagnosticWithMessage,
-    expectNoDiagnosticWithMessage,
     DiagnosticTestContext
 } from '../../test-helpers/diagnostic-test-helper';
 

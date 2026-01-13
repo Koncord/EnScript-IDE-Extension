@@ -7,13 +7,11 @@
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { parseWithDiagnostics } from '../../../server/src/server/parser/parser';
 import {
-    FileNode,
     ClassDeclNode,
     FunctionDeclNode,
     VarDeclNode,
     EnumDeclNode,
-    TypedefDeclNode,
-    MethodDeclNode
+    TypedefDeclNode
 } from '../../../server/src/server/ast/node-types';
 
 /**

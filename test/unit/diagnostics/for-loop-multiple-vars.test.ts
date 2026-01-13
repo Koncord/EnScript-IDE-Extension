@@ -2,7 +2,6 @@
  * Tests for for loop with multiple comma-separated variable declarations
  */
 
-import { TextDocument } from 'vscode-languageserver-textdocument';
 import { UndeclaredVariableRule } from '../../../server/src/server/diagnostics/rules/undeclared-variable';
 import {
     setupDiagnosticTestContainer,

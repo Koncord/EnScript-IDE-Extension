@@ -13,7 +13,7 @@ describe('DocumentSymbolHandler', () => {
     let testContext: DiagnosticTestContext;
     let mockConnection: Partial<Connection>;
     let mockDocuments: Partial<TextDocuments<TextDocument>>;
-    let documentSymbolCallback: ((params: any) => DocumentSymbol[]) | undefined;
+    let documentSymbolCallback: ((_params: any) => DocumentSymbol[]) | undefined;
 
     beforeEach(() => {
         testContext = setupDiagnosticTestContainer();

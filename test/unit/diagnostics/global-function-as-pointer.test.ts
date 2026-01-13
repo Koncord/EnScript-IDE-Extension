@@ -6,7 +6,6 @@
  * global functions when they are used as identifiers (not in call position).
  */
 
-import { TextDocument } from 'vscode-languageserver-textdocument';
 import { UndeclaredVariableRule } from '../../../server/src/server/diagnostics/rules/undeclared-variable';
 import {
     setupDiagnosticTestContainer,
