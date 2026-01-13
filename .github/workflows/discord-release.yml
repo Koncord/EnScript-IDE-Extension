@@ -1,0 +1,24 @@
+name: Discord Release Announcement
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  notify-discord:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Send Release to Discord
+        uses: SethCohen/github-releases-to-discord@v1.19.0
+        with:
+          webhook_url: ${{ secrets.DISCORD_RELEASE_WEBHOOK }}
+          color: "5814783"
+          username: "EnScript IDE Releases"
+          avatar_url: "https://raw.githubusercontent.com/Koncord/EnScript-IDE-Extension/refs/heads/main/icons/logo.png"
+          footer_title: "EnScript IDE"
+          footer_timestamp: true
+          reduce_headings: true
