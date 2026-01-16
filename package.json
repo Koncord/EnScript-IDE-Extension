@@ -95,7 +95,8 @@
                 "extensions": [
                     ".cpp",
                     ".hpp",
-                    ".rvmat"
+                    ".rvmat",
+                    ".cfg"
                 ],
                 "configuration": "./language-configuration.json"
             },
@@ -107,7 +108,10 @@
                 ],
                 "extensions": [
                     ".imageset",
-                    ".layout"
+                    ".layout",
+                    ".emat",
+                    ".ptc",
+                    ".meta"
                 ],
                 "configuration": "./language-configuration.json"
             }
