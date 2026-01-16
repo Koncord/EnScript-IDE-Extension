@@ -20,12 +20,18 @@ interface MaterialRequestMessage {
     requestId: string;
 }
 
+interface ModelCfgRequestMessage {
+    type: 'requestModelCfg';
+    requestId: string;
+    modelName: string;
+}
+
 interface OpenFileMessage {
     type: 'openFile';
     path: string;
 }
 
-type OutgoingMessage = ReadyMessage | TextureRequestMessage | MaterialRequestMessage | OpenFileMessage;
+type OutgoingMessage = ReadyMessage | TextureRequestMessage | MaterialRequestMessage | ModelCfgRequestMessage | OpenFileMessage;
 
 // Incoming messages (extension -> webview)
 interface InitMessage {
@@ -61,7 +67,29 @@ type MaterialResponseMessage = {
     content?: never;
 };
 
-type IncomingMessage = InitMessage | TextureResponseMessage | MaterialResponseMessage;
+export interface ModelCfgData {
+    skeletons: Record<string, {
+        bones: Array<{ name: string; parent: string }>;
+    }>;
+    models: Record<string, {
+        skeletonName: string;
+        sections: string[];
+    }>;
+}
+
+type ModelCfgResponseMessage = {
+    type: 'modelCfgResponse';
+    requestId: string;
+    data: ModelCfgData;
+    error?: never;
+} | {
+    type: 'modelCfgResponse';
+    requestId: string;
+    error: string;
+    data?: never;
+};
+
+type IncomingMessage = InitMessage | TextureResponseMessage | MaterialResponseMessage | ModelCfgResponseMessage;
 
 /**
  * Handles communication with VSCode extension host for loading Model resources
@@ -70,6 +98,7 @@ export class ResourceLoader {
     private loadedDiffuseTextures: Map<string, THREE.Texture> = new Map();
     private loadedRvTextures: Map<string, RvTexture> = new Map();
     private loadedMaterials: Map<string, RvMat> = new Map();
+    private modelCfgData: ModelCfgData | null = null;
     private pendingRequests: Map<string, () => void> = new Map();
     private requestIdCounter = 0;
 
@@ -112,6 +141,33 @@ export class ResourceLoader {
      */
     getMaterials(): Map<string, RvMat> {
         return this.loadedMaterials;
+    }
+
+    /**
+     * Get loaded model.cfg data
+     */
+    getModelCfgData(): ModelCfgData | null {
+        return this.modelCfgData;
+    }
+
+    /**
+     * Request model.cfg from extension
+     * @param modelName The name of the model to load configuration for
+     */
+    requestModelCfg(modelName: string): Promise<void> {
+        return new Promise((resolve) => {
+            const requestId = `modelcfg_${this.requestIdCounter++}`;
+            this.pendingRequests.set(requestId, resolve);
+
+            console.log('Requesting model.cfg for model:', modelName);
+            this.sendMessage({
+                type: 'requestModelCfg',
+                requestId,
+                modelName
+            });
+
+            this.waitResource(requestId, resolve, 3000);
+        });
     }
 
     /**
@@ -173,6 +229,9 @@ export class ResourceLoader {
                     break;
                 case 'materialResponse':
                     this.handleMaterialResponse(message);
+                    break;
+                case 'modelCfgResponse':
+                    this.handleModelCfgResponse(message);
                     break;
             }
         });
@@ -268,6 +327,25 @@ export class ResourceLoader {
                 console.error('Failed to parse material:', error);
                 resolver();
             }
+        }
+    }
+
+    private handleModelCfgResponse(message: ModelCfgResponseMessage): void {
+        const resolver = this.pendingRequests.get(message.requestId);
+        if (resolver) {
+            this.pendingRequests.delete(message.requestId);
+
+            if (message.error) {
+                console.warn('Model.cfg load error:', message.error);
+                resolver();
+                return;
+            }
+
+            if (message.data) {
+                this.modelCfgData = message.data;
+                console.log('Model.cfg loaded:', message.data);
+            }
+            resolver();
         }
     }
 }

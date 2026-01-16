@@ -4,6 +4,7 @@ import * as fs from 'fs';
 import { getNonce } from '../util';
 import { Disposable } from './dispose';
 import { WebviewCollection } from './WebviewCollection';
+import { ModelCfgParser, ModelCfgData } from './model-cfg-parser';
 
 
 // Incoming messages (webview -> extension)
@@ -23,12 +24,18 @@ interface MaterialRequestMessage {
     requestId: string;
 }
 
+interface ModelCfgRequestMessage {
+    type: 'requestModelCfg';
+    requestId: string;
+    modelName: string;
+}
+
 interface OpenFileMessage {
     type: 'openFile';
     path: string;
 }
 
-type IncomingMessages = ReadyMessage | TextureRequestMessage | MaterialRequestMessage | OpenFileMessage;
+type IncomingMessages = ReadyMessage | TextureRequestMessage | MaterialRequestMessage | ModelCfgRequestMessage | OpenFileMessage;
 
 // Incoming messages (extension -> webview)
 interface InitMessage {
@@ -64,7 +71,19 @@ type MaterialResponseMessage = {
     content?: never;
 };
 
-type OutgoingMessage = InitMessage | TextureResponseMessage | MaterialResponseMessage;
+type ModelCfgResponseMessage = {
+    type: 'modelCfgResponse';
+    requestId: string;
+    data: ModelCfgData;
+    error?: never;
+} | {
+    type: 'modelCfgResponse';
+    requestId: string;
+    error: string;
+    data?: never;
+};
+
+type OutgoingMessage = InitMessage | TextureResponseMessage | MaterialResponseMessage | ModelCfgResponseMessage;
 
 /**
  * Custom readonly editor for P3D files.
@@ -153,13 +172,16 @@ export class ModelPreviewWebview implements vscode.CustomReadonlyEditorProvider<
         return html;
     }
 
-    private async onMessage(_document: ModelDocument, panel: vscode.WebviewPanel, message: IncomingMessages) {
+    private async onMessage(document: ModelDocument, panel: vscode.WebviewPanel, message: IncomingMessages) {
         switch (message.type) {
             case 'requestTexture':
                 await this.handleTextureRequest(panel, message.path, message.requestId);
                 return;
             case 'requestMaterial':
                 await this.handleMaterialRequest(panel, message.path, message.requestId);
+                return;
+            case 'requestModelCfg':
+                await this.handleModelCfgRequest(panel, document.uri, message.requestId, message.modelName);
                 return;
             case 'openFile':
                 await this.handleOpenFile(message.path);
@@ -222,6 +244,58 @@ export class ModelPreviewWebview implements vscode.CustomReadonlyEditorProvider<
                 type: 'materialResponse',
                 requestId,
                 error: `Failed to load material: ${(error as Error).message}`
+            });
+        }
+    }
+
+    private async handleModelCfgRequest(panel: vscode.WebviewPanel, modelUri: vscode.Uri, requestId: string, modelName: string): Promise<void> {
+        try {
+            // Look for model.cfg in the same directory as the p3d file
+            const modelDir = path.dirname(modelUri.fsPath);
+            const modelCfgPath = path.join(modelDir, 'model.cfg');
+
+            if (!fs.existsSync(modelCfgPath)) {
+                this.sendMessage(panel, {
+                    type: 'modelCfgResponse',
+                    requestId,
+                    error: `model.cfg not found in: ${modelDir}`
+                });
+                return;
+            }
+
+            // Parse model.cfg using ModelCfgParser and filter for the specific model
+            const allData = ModelCfgParser.parse(modelCfgPath);
+            
+            // Find the matching model
+            const model = allData.models[modelName];
+            if (!model) {
+                this.sendMessage(panel, {
+                    type: 'modelCfgResponse',
+                    requestId,
+                    error: `Model "${modelName}" not found in model.cfg`
+                });
+                return;
+            }
+
+            // Get the skeleton for this model
+            const skeleton = allData.skeletons[model.skeletonName];
+
+            // Return only the relevant model and skeleton
+            const data: ModelCfgData = {
+                skeletons: skeleton ? { [model.skeletonName]: skeleton } : {},
+                models: { [modelName]: model }
+            };
+
+            this.sendMessage(panel, {
+                type: 'modelCfgResponse',
+                requestId,
+                data
+            });
+        } catch (error) {
+            this.sendMessage(panel, {
+                type: 'modelCfgResponse',
+                requestId,
+                error: `Failed to parse model.cfg: ${(error as Error).message}`
             });
         }
     }

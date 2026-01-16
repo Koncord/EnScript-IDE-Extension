@@ -8,6 +8,7 @@ import { UIUtils } from './uiUtils';
 import { isProceduralTexture } from './proceduralTextures';
 import { MeshPhysicalMaterial } from 'three';
 import { ResourceLoader } from './ResourceLoader';
+import { SkeletonManager } from './SkeletonManager';
 
 export class ModelViewer {
     private sceneManager: SceneManager;
@@ -18,8 +19,10 @@ export class ModelViewer {
     private wireframeEnabled = false;
     private selectionPoints: THREE.Points | null = null;
     private selectionMesh: THREE.Mesh | null = null;
+    private skeletonManager: SkeletonManager;
 
     constructor(private resourceLoader: ResourceLoader) {
+        this.skeletonManager = new SkeletonManager();
         this.dom = new DomElements();
         this.ui = new UIUtils(this.dom);
 
@@ -107,6 +110,18 @@ export class ModelViewer {
      * Load textures and materials referenced in the model
      */
     private async loadModelResources(model: Mlod): Promise<void> {
+        // First, load model.cfg to get skeleton and model information
+        // Use the P3D filename (without extension) as the model name
+        const modelName = this.getModelName();
+        if (modelName) {
+            await this.resourceLoader.requestModelCfg(modelName);
+            const modelCfg = this.resourceLoader.getModelCfgData();
+
+            if (modelCfg) {
+                this.skeletonManager.loadModelCfg(modelCfg);
+            }
+        }
+
         const allMaterials = model.allMaterials || [];
         console.log('Model allMaterials:', allMaterials);
 
@@ -455,5 +470,20 @@ export class ModelViewer {
             this.sceneManager.scene.remove(this.selectionMesh);
             this.selectionMesh = null;
         }
+    }
+
+    /**
+     * Get model name from current document URI
+     */
+    private getModelName(): string | null {
+        // Extract model name from document.title which is set by VS Code based on filename
+        const title = document.title;
+        if (title && title.toLowerCase().endsWith('.p3d')) {
+            return title.substring(0, title.length - 4);
+        }
+        
+        // Fallback: try to extract from any available path information
+        console.warn('Could not determine model name from document title:', title);
+        return null;
     }
 }
