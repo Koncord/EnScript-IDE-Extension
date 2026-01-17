@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { Paa } from '@bis-toolkit/paa';
+import { ChannelSwizzler, Paa } from '@bis-toolkit/paa';
 import { ProceduralTextureFormat, generateProceduralTexture, parseProceduralTexture } from '../proceduralTextures';
 
 export interface SmdiMaps {
@@ -35,12 +35,7 @@ export class RvTexture {
         const uint8Buffer = new Uint8Array(buffer);
         const paa = new Paa();
         paa.read(uint8Buffer);
-        let canvas = RvTexture.paaToCanvas(paa, uint8Buffer);
-
-        // Decode Arma's custom normal map encoding to standard tangent-space
-        if (isNormalMap) {
-            canvas = RvTexture.decodeArmaNormalMap(canvas);
-        }
+        const canvas = RvTexture.paaToCanvas(paa, uint8Buffer);
 
         const texture = new THREE.CanvasTexture(canvas);
         texture.wrapS = THREE.RepeatWrapping;
@@ -137,6 +132,7 @@ export class RvTexture {
 
         // Get RGBA pixel data from PAA
         const rgbaData = mipmap.getRgba32PixelData(buffer);
+        ChannelSwizzler.apply(rgbaData, paa.channelSwizzle);
         // Some PAA sources come out as BGRA; swap R/B to match canvas expectation
         for (let i = 0; i < rgbaData.length; i += 4) {
             const r = rgbaData[i];
@@ -204,64 +200,5 @@ export class RvTexture {
         tex.needsUpdate = true;
 
         return tex;
-    }
-
-    /**
-     * Decode Arma normal map to standard tangent-space format
-     * 
-     * Arma uses a custom encoding
-     * normalXY = sample.xy + (sample.x - sample.z, 0) + (1, 0)
-     * tangentNormal.xy = normalXY * 2 - 1
-     * tangentNormal.z = sqrt(1 - dot(xy, xy))
-     * 
-     * This converts Arma's format to standard Three.js tangent-space normals.
-     * 
-     * @param canvas - Canvas with Arma normal map data
-     * @returns Canvas with standard tangent-space normals
-     */
-    static decodeArmaNormalMap(canvas: HTMLCanvasElement): HTMLCanvasElement {
-        const ctx = canvas.getContext('2d', { willReadFrequently: true });
-        if (!ctx) throw new Error('Failed to get 2D context');
-
-        const { width, height } = canvas;
-        const imageData = ctx.getImageData(0, 0, width, height);
-        const data = imageData.data;
-
-        const outputCanvas = document.createElement('canvas');
-        outputCanvas.width = width;
-        outputCanvas.height = height;
-        const outputCtx = outputCanvas.getContext('2d')!;
-        const outputImageData = outputCtx.createImageData(width, height);
-        const outData = outputImageData.data;
-
-        for (let i = 0; i < data.length; i += 4) {
-            // Read RGB values [0, 255]
-            const sampleX = data[i] / 255;
-            const sampleY = data[i + 1] / 255;
-            const sampleZ = data[i + 2] / 255;
-
-            // Apply Arma's decoding formula
-            // normalXY = sample.xy + (sample.x - sample.z, 0) + (1, 0)
-            let normalX = sampleX + (sampleX - sampleZ) + 1.0;
-            let normalY = sampleY + 1.0;
-
-            // Convert to [-1, 1] range
-            normalX = normalX * 2.0 - 1.0;
-            normalY = normalY * 2.0 - 1.0;
-
-            // Reconstruct Z (pointing outward)
-            const normalLenSq = normalX * normalX + normalY * normalY;
-            const normalZ = Math.sqrt(Math.max(1.0 - normalLenSq, 0.0));
-
-            // Convert back to [0, 1] for standard tangent-space storage
-            // Three.js expects: R=X*0.5+0.5, G=Y*0.5+0.5, B=Z*0.5+0.5
-            outData[i] = Math.round((normalX * 0.5 + 0.5) * 255);
-            outData[i + 1] = Math.round((normalY * 0.5 + 0.5) * 255);
-            outData[i + 2] = Math.round((normalZ * 0.5 + 0.5) * 255);
-            outData[i + 3] = 255; // Alpha
-        }
-
-        outputCtx.putImageData(outputImageData, 0, 0);
-        return outputCanvas;
     }
 }
