@@ -189,8 +189,8 @@ export class ModelViewer {
 
             // Convert face to triangles (tri = 1 triangle, quad = 2 triangles)
             const triangles = face.sidesCnt === 3
-                ? [[0, 2, 1]]  // Single triangle with winding order correction
-                : [[0, 3, 2], [0, 2, 1]];  // Two triangles from quad
+                ? [[0, 1, 2]]  // Single triangle with winding order correction
+                : [[0, 1, 2], [0, 2, 3]];  // Two triangles from quad
 
             // Get or create material for this face's material/texture
             const materialKey = (face.material || face.texture || 'default').toLowerCase();
@@ -266,7 +266,7 @@ export class ModelViewer {
             color: diffuseTexture ? 0xFFFFFF : 0x888888,
             metalness: 0.0,
             roughness: 0.7,
-            side: THREE.DoubleSide, // TODO: should be FrontSide
+            side: THREE.FrontSide,
             flatShading: false,
             // Shader uses Fresnel-modulated specular
             specularIntensity: 0.5,
@@ -404,8 +404,8 @@ export class ModelViewer {
                 const faceVertices = face.getUsedVertices();
 
                 const triangles = face.sidesCnt === 3
-                    ? [[0, 2, 1]]  // Single triangle
-                    : [[0, 2, 1], [0, 3, 2]];  // Two triangles from quad
+                    ? [[0, 1, 2]]  // Single triangle
+                    : [[0, 1, 2], [0, 2, 3]];  // Two triangles from quad
 
                 for (const tri of triangles) {
                     for (const vertIndex of tri) {
