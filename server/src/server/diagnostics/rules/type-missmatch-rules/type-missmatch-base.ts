@@ -1,6 +1,6 @@
 import { DiagnosticSeverity } from 'vscode-languageserver';
-import { ASTNode, Expression, Literal, CallExpression, FunctionDeclNode, MethodDeclNode, ClassDeclNode } from '../../../ast';
-import { BaseDiagnosticRule, DiagnosticCategory, DiagnosticRuleConfig, DiagnosticRuleContext, DiagnosticRuleResult } from '../../rules';
+import { ASTNode, Expression, Literal, CallExpression, FunctionDeclNode, MethodDeclNode } from '../../../ast';
+import { BaseDiagnosticRule, DiagnosticCategory, DiagnosticRuleContext, DiagnosticRuleResult } from '../../rules';
 import { Logger } from '../../../../util/logger';
 import {
     extractTypeName,
@@ -22,24 +22,12 @@ import { isIdentifier, isMemberExpression, isLiteral } from '../../../util/ast-c
 /**
  * Shared helper methods for type checking across multiple diagnostic rules
  */
-export class TypeMissmatchBase extends BaseDiagnosticRule {
+export abstract class TypeMissmatchBase extends BaseDiagnosticRule {
     id = 'type-mismatch';
     name = 'Type Mismatch';
     description = 'Detects type mismatches in assignments, returns, and function calls';
     category = DiagnosticCategory.TYPE;
     defaultSeverity: DiagnosticSeverity = DiagnosticSeverity.Error;
-
-    appliesToNode(_node: ASTNode): boolean {
-        return false; // This class is not a rule itself
-    }
-
-    async check(
-        _node: ClassDeclNode,
-        _context: DiagnosticRuleContext,
-        _config: DiagnosticRuleConfig
-    ): Promise<DiagnosticRuleResult[]> {
-        return []; // This class is not a rule itself
-    }
 
     /**
      * Check if two types are compatible (can be assigned)

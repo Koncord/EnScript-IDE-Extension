@@ -46,16 +46,14 @@ export class FunctionCallTypeMismatchRule extends TypeMissmatchBase {
     }
 
     async check(
-        node: ASTNode,
+        node: CallExpression,
         context: DiagnosticRuleContext,
         _config: DiagnosticRuleConfig
     ): Promise<DiagnosticRuleResult[]> {
         const results: DiagnosticRuleResult[] = [];
 
         try {
-            if (isCallExpression(node)) {
-                results.push(...await this.checkFunctionCall(node, context));
-            }
+            results.push(...await this.checkFunctionCall(node, context));
         } catch (error) {
             Logger.error(`FunctionCallTypeMismatchRule: Error checking node: ${error}`);
         }

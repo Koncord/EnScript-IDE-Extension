@@ -46,16 +46,14 @@ export class AssignmentTypeMismatchRule extends TypeMissmatchBase {
     }
 
     async check(
-        node: ASTNode,
+        node: AssignmentExpression,
         context: DiagnosticRuleContext,
         _config: DiagnosticRuleConfig
     ): Promise<DiagnosticRuleResult[]> {
         const results: DiagnosticRuleResult[] = [];
 
         try {
-            if (isAssignmentExpression(node)) {
-                results.push(...await this.checkAssignment(node, context));
-            }
+            results.push(...await this.checkAssignment(node, context));
         } catch (error) {
             Logger.error(`AssignmentTypeMismatchRule: Error checking node: ${error}`);
         }

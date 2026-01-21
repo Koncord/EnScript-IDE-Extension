@@ -45,16 +45,14 @@ export class VariableDeclarationTypeMismatchRule extends TypeMissmatchBase {
     }
 
     async check(
-        node: ASTNode,
+        node: VarDeclNode,
         context: DiagnosticRuleContext,
         _config: DiagnosticRuleConfig
     ): Promise<DiagnosticRuleResult[]> {
         const results: DiagnosticRuleResult[] = [];
 
         try {
-            if (isVarDecl(node)) {
-                results.push(...await this.checkVariableDeclaration(node, context));
-            }
+            results.push(...await this.checkVariableDeclaration(node, context));
         } catch (error) {
             Logger.error(`VariableDeclarationTypeMismatchRule: Error checking node: ${error}`);
         }

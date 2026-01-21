@@ -48,16 +48,14 @@ export class BinaryOperationTypeMismatchRule extends TypeMissmatchBase {
     }
 
     async check(
-        node: ASTNode,
+        node: BinaryExpression,
         context: DiagnosticRuleContext,
         _config: DiagnosticRuleConfig
     ): Promise<DiagnosticRuleResult[]> {
         const results: DiagnosticRuleResult[] = [];
 
         try {
-            if (isBinaryExpression(node)) {
-                results.push(...await this.checkBinaryOperation(node, context));
-            }
+            results.push(...await this.checkBinaryOperation(node, context));
         } catch (error) {
             Logger.error(`BinaryOperationTypeMismatchRule: Error checking node: ${error}`);
         }

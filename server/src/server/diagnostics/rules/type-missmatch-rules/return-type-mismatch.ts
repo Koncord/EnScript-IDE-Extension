@@ -55,16 +55,14 @@ export class ReturnTypeMismatchRule extends TypeMissmatchBase {
     }
 
     async check(
-        node: ASTNode,
+        node: ReturnStatement,
         context: DiagnosticRuleContext,
         _config: DiagnosticRuleConfig
     ): Promise<DiagnosticRuleResult[]> {
         const results: DiagnosticRuleResult[] = [];
 
         try {
-            if (isReturnStatement(node)) {
-                results.push(...await this.checkReturnStatement(node, context));
-            }
+            results.push(...await this.checkReturnStatement(node, context));
         } catch (error) {
             Logger.error(`ReturnTypeMismatchRule: Error checking node: ${error}`);
         }
