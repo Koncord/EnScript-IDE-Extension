@@ -7,7 +7,12 @@ export { UndeclaredEnumMemberRule } from './undeclared-enum-member';
 export { UndeclaredBaseClassRule } from './undeclared-base-class';
 export { UndeclaredEntityRule } from './undeclared-entity-base';
 export { StaticInstanceMismatchRule } from './static-instance-mismatch';
-export { TypeMismatchRule } from './type-mismatch';
+export { AssignmentTypeMismatchRule } from './type-missmatch-rules/assignment-type-mismatch';
+export { VariableDeclarationTypeMismatchRule } from './type-missmatch-rules/variable-declaration-type-mismatch';
+export { ReturnTypeMismatchRule } from './type-missmatch-rules/return-type-mismatch';
+export { FunctionCallTypeMismatchRule } from './type-missmatch-rules/function-call-type-mismatch';
+export { BinaryOperationTypeMismatchRule } from './type-missmatch-rules/binary-operation-type-mismatch';
+export { TypeMissmatchBase as TypeCheckingHelpers } from './type-missmatch-rules/type-missmatch-base';
 export { IncorrectRefUsageRule } from './incorrect-ref-usage';
 export { VariableShadowingRule } from './variable-shadowing';
 export { MissingOverrideRule } from './missing-override';
@@ -22,7 +27,11 @@ import { UndeclaredTypeRule } from './undeclared-type';
 import { UndeclaredEnumMemberRule } from './undeclared-enum-member';
 import { UndeclaredBaseClassRule } from './undeclared-base-class';
 import { StaticInstanceMismatchRule } from './static-instance-mismatch';
-import { TypeMismatchRule } from './type-mismatch';
+import { AssignmentTypeMismatchRule } from './type-missmatch-rules/assignment-type-mismatch';
+import { VariableDeclarationTypeMismatchRule } from './type-missmatch-rules/variable-declaration-type-mismatch';
+import { ReturnTypeMismatchRule } from './type-missmatch-rules/return-type-mismatch';
+import { FunctionCallTypeMismatchRule } from './type-missmatch-rules/function-call-type-mismatch';
+import { BinaryOperationTypeMismatchRule } from './type-missmatch-rules/binary-operation-type-mismatch';
 import { IncorrectRefUsageRule } from './incorrect-ref-usage';
 import { VariableShadowingRule } from './variable-shadowing';
 import { MissingOverrideRule } from './missing-override';
@@ -42,7 +51,12 @@ export function getBuiltInRules(): DiagnosticRule[] {
         new UndeclaredEnumMemberRule(),
         new UndeclaredBaseClassRule(),
         new StaticInstanceMismatchRule(),
-        new TypeMismatchRule(),
+        // Type mismatch rules - now split into focused rules
+        new AssignmentTypeMismatchRule(),
+        new VariableDeclarationTypeMismatchRule(),
+        new ReturnTypeMismatchRule(),
+        new FunctionCallTypeMismatchRule(),
+        new BinaryOperationTypeMismatchRule(),
         new IncorrectRefUsageRule(),
         new VariableShadowingRule(),
         new MissingOverrideRule(),
@@ -94,9 +108,25 @@ export function registerBuiltInRules(registry: DiagnosticRuleRegistry): void {
         priority: 90
     });
 
-    // Type checking rules
-    registry.register(new TypeMismatchRule(), {
+    // Type checking rules - now split into focused rules for better maintainability
+    registry.register(new AssignmentTypeMismatchRule(), {
         priority: 95 // Check type compatibility after type existence is verified
+    });
+
+    registry.register(new VariableDeclarationTypeMismatchRule(), {
+        priority: 95
+    });
+
+    registry.register(new ReturnTypeMismatchRule(), {
+        priority: 95
+    });
+
+    registry.register(new FunctionCallTypeMismatchRule(), {
+        priority: 95
+    });
+
+    registry.register(new BinaryOperationTypeMismatchRule(), {
+        priority: 95
     });
 
     // Best practice rules
