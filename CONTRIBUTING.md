@@ -80,6 +80,8 @@ Follow conventional commit format:
 - `chore: update dependencies`
 - `test: add tests for symbol lookup`
 - `refactor: improve diagnostics performance`
+- `perf: optimize type resolution`
+- `ci: update GitHub Actions workflow`
 
 ### Pull Request Process
 

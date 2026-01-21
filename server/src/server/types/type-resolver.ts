@@ -22,7 +22,10 @@ import {
     BlockStatement,
     Identifier,
     Literal,
-    NewExpression
+    NewExpression,
+    UnaryExpression,
+    CastExpression,
+    ArrayLiteralExpression
 } from '../ast/node-types';
 import { BaseASTVisitor } from '../ast/ast-visitor';
 import { Logger } from '../../util/logger';
@@ -80,6 +83,22 @@ export class TypeResolver implements ITypeResolver {
 
     private docCache: NewDocumentCache;
 
+    // Performance caches - cleared on invalidation
+    private memberLookupCache = new Map<string, string | null>(); // "className:memberName" -> type
+    private inheritanceChainCache = new Map<string, string[]>(); // "className" -> [parent1, parent2, ...]
+
+    // Performance tracking
+    private perfCounters = {
+        resolveExpressionType: { calls: 0, time: 0, byKind: new Map<string, { calls: number, time: number }>() },
+        cacheHits: 0,
+        cacheMisses: 0,
+        findContainingClass: { calls: 0, time: 0 },
+        searchInClass: { calls: 0, time: 0 },
+        searchInFunction: { calls: 0, time: 0 },
+        memberLookupCacheHits: 0,
+        memberLookupCacheMisses: 0,
+    };
+
     constructor(
         @inject(TYPES.IDocumentCacheManager) private cacheManager: IDocumentCacheManager,
         @inject(TYPES.ISymbolCacheManager) private symbolCache: ISymbolCacheManager,
@@ -97,12 +116,85 @@ export class TypeResolver implements ITypeResolver {
     }
 
     /**
+     * Get performance statistics and optionally reset counters
+     */
+    public getPerformanceStats(reset = false): any {
+        const stats = {
+            resolveExpressionType: {
+                totalCalls: this.perfCounters.resolveExpressionType.calls,
+                totalTime: this.perfCounters.resolveExpressionType.time,
+                avgTime: this.perfCounters.resolveExpressionType.calls > 0
+                    ? this.perfCounters.resolveExpressionType.time / this.perfCounters.resolveExpressionType.calls
+                    : 0,
+                byKind: Array.from(this.perfCounters.resolveExpressionType.byKind.entries())
+                    .map(([kind, stats]) => ({
+                        kind,
+                        calls: stats.calls,
+                        totalTime: stats.time,
+                        avgTime: stats.calls > 0 ? stats.time / stats.calls : 0
+                    }))
+                    .sort((a, b) => b.totalTime - a.totalTime)
+            },
+            cache: {
+                hits: this.perfCounters.cacheHits,
+                misses: this.perfCounters.cacheMisses,
+                hitRate: (this.perfCounters.cacheHits + this.perfCounters.cacheMisses) > 0
+                    ? (this.perfCounters.cacheHits / (this.perfCounters.cacheHits + this.perfCounters.cacheMisses) * 100).toFixed(2) + '%'
+                    : 'N/A',
+                memberLookupHits: this.perfCounters.memberLookupCacheHits,
+                memberLookupMisses: this.perfCounters.memberLookupCacheMisses,
+                memberLookupHitRate: (this.perfCounters.memberLookupCacheHits + this.perfCounters.memberLookupCacheMisses) > 0
+                    ? (this.perfCounters.memberLookupCacheHits / (this.perfCounters.memberLookupCacheHits + this.perfCounters.memberLookupCacheMisses) * 100).toFixed(2) + '%'
+                    : 'N/A'
+            },
+            operations: {
+                findContainingClass: {
+                    calls: this.perfCounters.findContainingClass.calls,
+                    totalTime: this.perfCounters.findContainingClass.time,
+                    avgTime: this.perfCounters.findContainingClass.calls > 0
+                        ? this.perfCounters.findContainingClass.time / this.perfCounters.findContainingClass.calls
+                        : 0
+                },
+                searchInClass: {
+                    calls: this.perfCounters.searchInClass.calls,
+                    totalTime: this.perfCounters.searchInClass.time,
+                    avgTime: this.perfCounters.searchInClass.calls > 0
+                        ? this.perfCounters.searchInClass.time / this.perfCounters.searchInClass.calls
+                        : 0
+                },
+                searchInFunction: {
+                    calls: this.perfCounters.searchInFunction.calls,
+                    totalTime: this.perfCounters.searchInFunction.time,
+                    avgTime: this.perfCounters.searchInFunction.calls > 0
+                        ? this.perfCounters.searchInFunction.time / this.perfCounters.searchInFunction.calls
+                        : 0
+                }
+            }
+        };
+
+        if (reset) {
+            this.perfCounters.resolveExpressionType = { calls: 0, time: 0, byKind: new Map() };
+            this.perfCounters.cacheHits = 0;
+            this.perfCounters.cacheMisses = 0;
+            this.perfCounters.findContainingClass = { calls: 0, time: 0 };
+            this.perfCounters.searchInClass = { calls: 0, time: 0 };
+            this.perfCounters.searchInFunction = { calls: 0, time: 0 };
+            this.perfCounters.memberLookupCacheHits = 0;
+            this.perfCounters.memberLookupCacheMisses = 0;
+        }
+
+        return stats;
+    }
+
+    /**
      * Invalidate all caches (both workspace and external)
      * Call this when the document cache changes significantly
      */
     public invalidateCaches(): void {
         this.typeCache.clear();
         this.symbolCache.invalidateAllCaches();
+        this.memberLookupCache.clear();
+        this.inheritanceChainCache.clear();
         this.cacheVersion++;
         Logger.debug(`🔄 All type resolver caches invalidated (version: ${this.cacheVersion})`);
     }
@@ -116,6 +208,8 @@ export class TypeResolver implements ITypeResolver {
         // The performance impact is minimal compared to selective clearing
         this.typeCache.clear();
         this.symbolCache.invalidateExternalCaches();
+        this.memberLookupCache.clear();
+        this.inheritanceChainCache.clear();
         this.cacheVersion++;
         Logger.debug(`🔄 External type resolver caches invalidated (version: ${this.cacheVersion})`);
     }
@@ -238,11 +332,13 @@ export class TypeResolver implements ITypeResolver {
 
         // Check cache first for significant performance improvement
         if (this.typeCache.has(cacheKey)) {
+            this.perfCounters.cacheHits++;
             const cached = this.typeCache.get(cacheKey)!;
             Logger.debug(`   ✓ Found in cache: ${cached}`);
             return cached;
         }
 
+        this.perfCounters.cacheMisses++;
         Logger.debug(`   → Not in cache, resolving...`);
 
         let result: string | null = null;
@@ -301,29 +397,66 @@ export class TypeResolver implements ITypeResolver {
      * Resolve expression type using AST structure
      */
     resolveExpressionType(expr: Expression, context: FileNode, doc?: TextDocument): string | null {
+        const startTime = performance.now();
+        this.perfCounters.resolveExpressionType.calls++;
+
         if (this.enableDetailedLogging) {
             Logger.debug(`🔍 TypeResolver: Resolving expression type for ${expr.kind}`);
         }
 
+        let result: string | null = null;
         switch (expr.kind) {
             case 'CallExpression':
-                return this.resolveCallExpression(expr as CallExpression, context, doc);
+                result = this.resolveCallExpression(expr as CallExpression, context, doc);
+                break;
             case 'MemberExpression':
-                return this.resolveMemberExpression(expr as MemberExpression, context, doc);
+                result = this.resolveMemberExpression(expr as MemberExpression, context, doc);
+                break;
             case 'BinaryExpression':
-                return this.resolveBinaryExpression(expr as BinaryExpression, context, doc);
+                result = this.resolveBinaryExpression(expr as BinaryExpression, context, doc);
+                break;
             case 'AssignmentExpression':
-                return this.resolveAssignmentExpression(expr as AssignmentExpression, context, doc);
+                result = this.resolveAssignmentExpression(expr as AssignmentExpression, context, doc);
+                break;
             case 'Identifier':
-                return this.resolveIdentifier(expr as Identifier, context, doc);
+                result = this.resolveIdentifier(expr as Identifier, context, doc);
+                break;
             case 'Literal':
-                return this.resolveLiteral(expr as Literal);
+                result = this.resolveLiteral(expr as Literal);
+                break;
             case 'NewExpression':
-                return this.resolveNewExpression(expr as NewExpression, context);
+                result = this.resolveNewExpression(expr as NewExpression, context);
+                break;
+            case 'UnaryExpression':
+                result = this.resolveUnaryExpression(expr as UnaryExpression, context, doc);
+                break;
+            case 'ThisExpression':
+                result = this.resolveThisExpression(doc, expr.start);
+                break;
+            case 'SuperExpression':
+                result = this.resolveSuperExpression(doc, expr.start);
+                break;
+            case 'CastExpression':
+                result = this.resolveCastExpression(expr as CastExpression);
+                break;
+            case 'ArrayLiteralExpression':
+                result = this.resolveArrayLiteralExpression(expr as ArrayLiteralExpression, context, doc);
+                break;
             default:
                 Logger.debug(`⚠️ TypeResolver: Unhandled expression type: ${expr.kind}`);
-                return null;
+                result = null;
         }
+
+        // Track performance by expression kind
+        const elapsed = performance.now() - startTime;
+        this.perfCounters.resolveExpressionType.time += elapsed;
+
+        const kindStats = this.perfCounters.resolveExpressionType.byKind.get(expr.kind) || { calls: 0, time: 0 };
+        kindStats.calls++;
+        kindStats.time += elapsed;
+        this.perfCounters.resolveExpressionType.byKind.set(expr.kind, kindStats);
+
+        return result;
     }
 
     /**
@@ -517,6 +650,9 @@ export class TypeResolver implements ITypeResolver {
         position?: Position,
         doc?: TextDocument
     ): string | null {
+        const startTime = performance.now();
+        this.perfCounters.searchInClass.calls++;
+
         if (this.enableDetailedLogging) {
             Logger.debug(`🔍 TypeResolver: Checking class "${classNode.name}" for "${objectName}"`);
         }
@@ -571,21 +707,20 @@ export class TypeResolver implements ITypeResolver {
                 if (this.enableDetailedLogging) {
                     Logger.debug(`🔍 TypeResolver: Checking parent class "${baseClassName}" for member "${objectName}"`);
                 }
-                
-                // Find all definitions of the base class and search in them
-                const baseClassDefs = this.findAllClassDefinitions(baseClassName);
-                for (const baseClassDef of baseClassDefs) {
-                    const result = this.searchInClass(objectName, baseClassDef, position, doc);
-                    if (result) {
-                        if (this.enableDetailedLogging) {
-                            Logger.debug(`🎯 TypeResolver: Found member "${objectName}" in parent class "${baseClassName}"`);
-                        }
-                        return result;
+
+                // Use cached lookup for inheritance chain (method locals don't inherit)
+                const result = this.lookupClassMember(baseClassName, objectName, []);
+                if (result) {
+                    if (this.enableDetailedLogging) {
+                        Logger.debug(`🎯 TypeResolver: Found member "${objectName}" in parent class "${baseClassName}" (cached)`);
                     }
+                    this.perfCounters.searchInClass.time += performance.now() - startTime;
+                    return result;
                 }
             }
         }
 
+        this.perfCounters.searchInClass.time += performance.now() - startTime;
         return null;
     }
 
@@ -600,7 +735,7 @@ export class TypeResolver implements ITypeResolver {
     ): string | null {
         // Use cache key for merged class member lookup
         const cacheKey = `merged:${className}:${objectName}`;
-        
+
         if (this.typeCache.has(cacheKey)) {
             return this.typeCache.get(cacheKey)!;
         }
@@ -612,7 +747,7 @@ export class TypeResolver implements ITypeResolver {
         // Get ALL class definitions and merge them
         const allClassDefs = this.findAllClassDefinitions(className);
         const mergedClass = mergeClassDefinitions(allClassDefs);
-        
+
         if (!mergedClass) {
             this.typeCache.set(cacheKey, null);
             return null;
@@ -647,6 +782,9 @@ export class TypeResolver implements ITypeResolver {
         position?: Position,
         doc?: TextDocument
     ): string | null {
+        const startTime = performance.now();
+        this.perfCounters.searchInFunction.calls++;
+
         // FIRST: Check funcNode.locals if it exists (populated by parser)
         // Local variables shadow parameters
         if (funcNode.locals) {
@@ -689,6 +827,7 @@ export class TypeResolver implements ITypeResolver {
             }
         }
 
+        this.perfCounters.searchInFunction.time += performance.now() - startTime;
         return null;
     }
 
@@ -845,45 +984,45 @@ export class TypeResolver implements ITypeResolver {
         if (!containingFunction || !isBlockStatement(containingFunction.body)) {
             return null;
         }
-        
+
         // Search for ForEachStatement in the function body that contains this variable
         const foreachStmt = this.findForeachStatementWithVariable(containingFunction.body, varNode.name, doc, varNode.start);
         if (!foreachStmt) {
             return null;
         }
-        
+
         // Find the index of this variable in the foreach variables array
         const varIndex = foreachStmt.variables.findIndex(v => v.name === varNode.name);
         if (varIndex < 0) {
             return null;
         }
-        
+
         // Resolve the type of the iterable expression
         const ast = this.ensureDocumentParsed(doc);
         let iterableType = this.resolveExpressionType(foreachStmt.iterable, ast, doc);
-        
+
         if (!iterableType) {
             return null;
         }
-        
+
         // Resolve typedef to the underlying type if necessary
         iterableType = this.resolveTypedefToFullType(iterableType) || iterableType;
-        
+
         // Extract element type from generic container types
         const elementType = this.extractElementTypeFromIterable(iterableType, varIndex);
         if (elementType && this.enableDetailedLogging) {
             Logger.debug(`🎯 TypeResolver: Resolved foreach variable "${varNode.name}" (index ${varIndex}) from iterable type "${iterableType}" to element type "${elementType}"`);
         }
-        
+
         return elementType;
     }
-    
+
     /**
      * Find a ForEachStatement that declares the given variable name
      * Searches recursively through block statements
      */
     private findForeachStatementWithVariable(
-        block: BlockStatement, 
+        block: BlockStatement,
         varName: string,
         doc: TextDocument,
         varPosition?: Position
@@ -906,7 +1045,7 @@ export class TypeResolver implements ITypeResolver {
                         return stmt;
                     }
                 }
-                
+
                 // Recursively search the foreach body
                 if (isBlockStatement(stmt.body)) {
                     const nested = this.findForeachStatementWithVariable(stmt.body, varName, doc, varPosition);
@@ -915,7 +1054,7 @@ export class TypeResolver implements ITypeResolver {
                     }
                 }
             }
-            
+
             // Recursively search nested blocks
             if (isBlockStatement(stmt)) {
                 const nested = this.findForeachStatementWithVariable(stmt, varName, doc, varPosition);
@@ -924,7 +1063,7 @@ export class TypeResolver implements ITypeResolver {
                 }
             }
         }
-        
+
         return null;
     }
 
@@ -956,7 +1095,7 @@ export class TypeResolver implements ITypeResolver {
                 return parsed.typeArguments[variableIndex];
             }
         }
-        
+
         return null;
     }
 
@@ -998,14 +1137,13 @@ export class TypeResolver implements ITypeResolver {
             const funcName = expr.callee.name;
 
             // First, check if we're inside a class and this might be a method call (including inherited)
-            if (doc && expr.start) {
-                const containingClass = this.findClassAtPosition(context, expr.start);
-                if (containingClass) {
-                    // Look for the method in this class and its inheritance chain
-                    const methodReturnType = this.getMethodReturnType(containingClass.name, funcName, doc);
-                    if (methodReturnType) {
-                        return methodReturnType;
-                    }
+            // Walk up parent chain instead of iterating entire AST for better performance
+            const containingClass = this.findContainingClassFromNode(expr);
+            if (containingClass && doc) {
+                // Look for the method in this class and its inheritance chain
+                const methodReturnType = this.getMethodReturnType(containingClass.name, funcName, doc);
+                if (methodReturnType) {
+                    return methodReturnType;
                 }
             }
 
@@ -1022,10 +1160,7 @@ export class TypeResolver implements ITypeResolver {
                     return globalFunctionType;
                 }
             }
-        }
-
-        // Handle method calls
-        if (isMemberExpression(expr.callee)) {
+        } else if (isMemberExpression(expr.callee)) {
             const memberExpr = expr.callee;
 
             // Special handling for Cast method: ClassName.Cast(obj) returns ClassName
@@ -1074,24 +1209,22 @@ export class TypeResolver implements ITypeResolver {
         // Check if the object is a class name for static member access (e.g., vector.Forward)
         if (isIdentifier(expr.object)) {
             const className = expr.object.name;
+            const memberName = expr.property.name;
+
+            // Try cache first for static member access
+            const staticCacheKey = `static:${className}:${memberName}`;
+            if (this.memberLookupCache.has(staticCacheKey)) {
+                this.perfCounters.memberLookupCacheHits++;
+                return this.memberLookupCache.get(staticCacheKey)!;
+            }
+
             const classDefinitions = this.findAllClassDefinitions(className);
             if (classDefinitions.length > 0) {
                 // This is static member access: ClassName.memberName
-                // Use the class name as the object type
-                const classDecl = mergeClassDefinitions(classDefinitions);
-                if (classDecl) {
-                    const memberName = expr.property.name;
-                    for (const member of classDecl.members || []) {
-                        if (member.name === memberName) {
-                            if (isVarDecl(member)) {
-                                return getTypeName(member.type);
-                            }
-                            if (isMethod(member)) {
-                                return getTypeName(member.returnType);
-                            }
-                        }
-                    }
-                }
+                const result = this.lookupClassMember(className, memberName, []);
+                this.memberLookupCache.set(staticCacheKey, result);
+                this.perfCounters.memberLookupCacheMisses++;
+                return result;
             }
         }
 
@@ -1110,28 +1243,54 @@ export class TypeResolver implements ITypeResolver {
         const baseTypeName = genericInfo.baseType;
         const genericArgs = genericInfo.typeArguments;
 
+        // Use cached member lookup
+        const memberName = expr.property.name;
+        return this.lookupClassMember(baseTypeName, memberName, genericArgs);
+    }
+
+    /**
+     * Look up a member in a class (with caching and inheritance support)
+     */
+    private lookupClassMember(className: string, memberName: string, genericArgs: string[]): string | null {
+        // Create cache key including generic args for precise caching
+        const genericSuffix = genericArgs.length > 0 ? `<${genericArgs.join(',')}>` : '';
+        const cacheKey = `${className}${genericSuffix}:${memberName}`;
+
+        if (this.memberLookupCache.has(cacheKey)) {
+            this.perfCounters.memberLookupCacheHits++;
+            return this.memberLookupCache.get(cacheKey)!;
+        }
+
+        this.perfCounters.memberLookupCacheMisses++;
+
         // Find and merge all class definitions for the base type
-        const classDefinitions = this.findAllClassDefinitions(baseTypeName);
+        const classDefinitions = this.findAllClassDefinitions(className);
         const classDecl = mergeClassDefinitions(classDefinitions);
         if (!classDecl) {
+            this.memberLookupCache.set(cacheKey, null);
             return null;
         }
 
-        // Look for the member in the class
-        const memberName = expr.property.name;
+        // Look for the member in the merged class (includes inherited members)
         for (const member of classDecl.members || []) {
             if (member.name === memberName) {
+                let memberType: string | null = null;
                 if (isVarDecl(member)) {
-                    const memberType = getTypeName(member.type);
-                    return this.substituteGenericTypes(memberType, classDecl, genericArgs);
+                    memberType = getTypeName(member.type);
+                } else if (isMethod(member)) {
+                    memberType = getTypeName(member.returnType);
                 }
-                if (isMethod(member)) {
-                    const returnType = getTypeName(member.returnType);
-                    return this.substituteGenericTypes(returnType, classDecl, genericArgs);
+
+                if (memberType) {
+                    // Apply generic substitution if needed
+                    const result = this.substituteGenericTypes(memberType, classDecl, genericArgs);
+                    this.memberLookupCache.set(cacheKey, result);
+                    return result;
                 }
             }
         }
 
+        this.memberLookupCache.set(cacheKey, null);
         return null;
     }
 
@@ -1222,7 +1381,7 @@ export class TypeResolver implements ITypeResolver {
             }
 
             // String concatenation (only when not mixed with vector)
-            if (expr.operator === '+' && 
+            if (expr.operator === '+' &&
                 (leftType === 'string' || rightType === 'string') &&
                 leftType !== 'vector' && rightType !== 'vector') {
                 return 'string';
@@ -1234,14 +1393,14 @@ export class TypeResolver implements ITypeResolver {
 
             if (leftIsNumeric && rightIsNumeric) {
                 // Both are numeric/enum - apply standard type promotion
-            if (leftType === 'float' || rightType === 'float') {
-                return 'float';
-            }
-            if (this.isEnumType(leftType) || this.isEnumType(rightType)) {
-                return 'int';
-            }
-            if (leftType === 'int' && rightType === 'int') {
-                return 'int';
+                if (leftType === 'float' || rightType === 'float') {
+                    return 'float';
+                }
+                if (this.isEnumType(leftType) || this.isEnumType(rightType)) {
+                    return 'int';
+                }
+                if (leftType === 'int' && rightType === 'int') {
+                    return 'int';
                 }
             }
 
@@ -1361,6 +1520,54 @@ export class TypeResolver implements ITypeResolver {
             default:
                 return 'unknown';
         }
+    }
+
+    private resolveUnaryExpression(expr: UnaryExpression, context: FileNode, doc?: TextDocument): string | null {
+        // Logical NOT always returns bool
+        if (expr.operator === '!') {
+            return 'bool';
+        }
+
+        // For other unary operators (+, -, ~, ++, --), return the operand's type
+        return this.resolveExpressionType(expr.operand, context, doc);
+    }
+
+    private resolveThisExpression(doc?: TextDocument, position?: Position): string | null {
+        if (!doc) {
+            return null;
+        }
+        return this.resolveThisType(doc, position);
+    }
+
+    private resolveSuperExpression(doc?: TextDocument, position?: Position): string | null {
+        if (!doc) {
+            return null;
+        }
+        return this.resolveSuperType(doc, position);
+    }
+
+    private resolveCastExpression(expr: CastExpression): string | null {
+        if (expr.type) {
+            return getTypeName(expr.type);
+        }
+        return null;
+    }
+
+    private resolveArrayLiteralExpression(expr: ArrayLiteralExpression, context: FileNode, doc?: TextDocument): string | null {
+        // If array is empty, we can't infer the type
+        if (!expr.elements || expr.elements.length === 0) {
+            return 'array'; // Generic array without type parameter
+        }
+
+        // Try to infer from first element
+        const firstElement = expr.elements[0];
+        const elementType = this.resolveExpressionType(firstElement, context, doc);
+
+        if (elementType) {
+            return `array<${elementType}>`;
+        }
+
+        return 'array'; // Fallback to generic array
     }
 
     // ============================================================================
@@ -1489,6 +1696,27 @@ export class TypeResolver implements ITypeResolver {
             }
         }
 
+        return null;
+    }
+
+    /**
+     * Find containing class by walking up the parent chain from a node
+     * More efficient than iterating through entire AST with position checks
+     */
+    private findContainingClassFromNode(node: ASTNode): ClassDeclNode | null {
+        const startTime = performance.now();
+        this.perfCounters.findContainingClass.calls++;
+
+        let current: ASTNode | undefined = node.parent;
+        while (current) {
+            if (isClass(current)) {
+                this.perfCounters.findContainingClass.time += performance.now() - startTime;
+                return current as ClassDeclNode;
+            }
+            current = current.parent;
+        }
+
+        this.perfCounters.findContainingClass.time += performance.now() - startTime;
         return null;
     }
 
