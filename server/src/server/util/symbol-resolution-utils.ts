@@ -27,7 +27,8 @@ import {
     isConstDeclaration,
     isIdentifier,
     isThisExpression,
-    mergeClassDefinitions
+    mergeClassDefinitions,
+    isGenericType
 } from './ast-class-utils';
 import { keywords } from '../lexer/rules';
 import { Logger } from '../../util/logger';
@@ -306,14 +307,14 @@ export async function tryLoadClassFromIncludes(
  * Always trims whitespace from type names
  */
 export function extractTypeName(typeNode: ASTNode): string | null {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const typeNodeAny = typeNode as any;
 
     // Handle GenericType - get the base type name
-    if ('kind' in typeNodeAny && typeNodeAny.kind === 'GenericType' && 'baseType' in typeNodeAny) {
-        return extractTypeName(typeNodeAny.baseType);
+    if (isGenericType(typeNode)) {
+        return extractTypeName(typeNode.baseType);
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const typeNodeAny = typeNode as any;
     // Try 'name' property first (most common)
     if ('name' in typeNodeAny && typeof typeNodeAny.name === 'string') {
         return typeNodeAny.name.trim();

@@ -8,7 +8,6 @@ import { DiagnosticSeverity } from 'vscode-languageserver';
 import { ASTNode } from '../../../ast';
 import { isAssignmentExpression } from '../../../util/ast-class-utils';
 import { AssignmentExpression } from '../../../ast/node-types';
-import { Logger } from '../../../../util/logger';
 import { TypeMissmatchBase } from './type-missmatch-base';
 
 /**
@@ -52,58 +51,39 @@ export class AssignmentTypeMismatchRule extends TypeMissmatchBase {
     ): Promise<DiagnosticRuleResult[]> {
         const results: DiagnosticRuleResult[] = [];
 
-        try {
-            results.push(...await this.checkAssignment(node, context));
-        } catch (error) {
-            Logger.error(`AssignmentTypeMismatchRule: Error checking node: ${error}`);
+        const targetType = this.resolveExpressionType(node.left, context);
+        if (!targetType) {
+            return results;
         }
 
-        return results;
-    }
+        if (targetType === 'auto') {
+            return results;
+        }
 
-    private async checkAssignment(
-        node: AssignmentExpression,
-        context: DiagnosticRuleContext
-    ): Promise<DiagnosticRuleResult[]> {
-        const results: DiagnosticRuleResult[] = [];
+        const valueType = this.resolveExpressionType(node.right, context);
+        if (!valueType) {
+            return results;
+        }
 
-        try {
-            const targetType = this.resolveExpressionType(node.left, context);
-            if (!targetType) {
-                return results;
-            }
+        // Check for special implicit conversions
+        const conversionResult = this.checkImplicitConversion(
+            targetType,
+            valueType,
+            node.right
+        );
+        if (conversionResult) {
+            results.push(conversionResult);
+            return results;
+        }
 
-            if (targetType === 'auto') {
-                return results;
-            }
-
-            const valueType = this.resolveExpressionType(node.right, context);
-            if (!valueType) {
-                return results;
-            }
-
-            // Check for special implicit conversions
-            const conversionResult = this.checkImplicitConversion(
-                targetType,
-                valueType,
-                node.right
+        if (!this.isTypeCompatible(targetType, valueType, context, node.right)) {
+            results.push(
+                this.createTypeMismatchDiagnostic(
+                    `Type '${valueType}' is not assignable to type '${targetType}'`,
+                    node.right,
+                    DiagnosticSeverity.Error
+                )
             );
-            if (conversionResult) {
-                results.push(conversionResult);
-                return results;
-            }
-
-            if (!this.isTypeCompatible(targetType, valueType, context, node.right)) {
-                results.push(
-                    this.createTypeMismatchDiagnostic(
-                        `Type '${valueType}' is not assignable to type '${targetType}'`,
-                        node.right,
-                        DiagnosticSeverity.Error
-                    )
-                );
-            }
-        } catch (error) {
-            Logger.error(`AssignmentTypeMismatchRule: Error checking assignment: ${error}`);
         }
 
         return results;

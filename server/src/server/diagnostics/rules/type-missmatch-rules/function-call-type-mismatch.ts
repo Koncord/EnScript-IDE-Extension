@@ -7,7 +7,6 @@ import {
 import { DiagnosticSeverity } from 'vscode-languageserver';
 import { ASTNode, CallExpression } from '../../../ast';
 import { isCallExpression } from '../../../util/ast-class-utils';
-import { Logger } from '../../../../util/logger';
 import { extractTypeName } from '../../../util/symbol-resolution-utils';
 import { TypeMissmatchBase } from './type-missmatch-base';
 
@@ -52,100 +51,77 @@ export class FunctionCallTypeMismatchRule extends TypeMissmatchBase {
     ): Promise<DiagnosticRuleResult[]> {
         const results: DiagnosticRuleResult[] = [];
 
-        try {
-            results.push(...await this.checkFunctionCall(node, context));
-        } catch (error) {
-            Logger.error(`FunctionCallTypeMismatchRule: Error checking node: ${error}`);
+        // Get the function/method declaration(s) - may have overloads
+        const functionDecls = await this.resolveFunctionDeclarations(node, context);
+        if (functionDecls.length === 0) {
+            return results;
         }
 
-        return results;
-    }
+        // Pick the best matching overload based on argument types
+        const functionDecl = this.pickBestOverload(functionDecls, node.arguments, context);
+        if (!functionDecl || !functionDecl.parameters) {
+            return results;
+        }
 
-    /**
-     * Check type mismatch in function calls (parameter types)
-     */
-    private async checkFunctionCall(
-        node: CallExpression,
-        context: DiagnosticRuleContext
-    ): Promise<DiagnosticRuleResult[]> {
-        const results: DiagnosticRuleResult[] = [];
+        const parameters = functionDecl.parameters;
+        const args = node.arguments;
 
-        try {
-            // Get the function/method declaration(s) - may have overloads
-            const functionDecls = await this.resolveFunctionDeclarations(node, context);
-            if (functionDecls.length === 0) {
-                return results;
+        // Check each argument against its corresponding parameter
+        const minLength = Math.min(parameters.length, args.length);
+        for (let i = 0; i < minLength; i++) {
+            const param = parameters[i];
+            const arg = args[i];
+
+            const paramType = extractTypeName(param.type);
+            if (!paramType || paramType === 'auto') {
+                continue;
             }
 
-            // Pick the best matching overload based on argument types
-            const functionDecl = this.pickBestOverload(functionDecls, node.arguments, context);
-            if (!functionDecl || !functionDecl.parameters) {
-                return results;
+            // Special case: void and typename parameters are treated as 'any' - accept any argument type
+            // void: used in functions like Write(void value_out) which accepts any type
+            // typename: used for type-agnostic parameters that can accept any type
+            if (paramType === 'void' || paramType === 'typename') {
+                continue;
             }
 
-            const parameters = functionDecl.parameters;
-            const args = node.arguments;
+            const argType = this.resolveExpressionType(arg, context);
+            if (!argType) {
+                continue;
+            }
 
-            // Check each argument against its corresponding parameter
-            const minLength = Math.min(parameters.length, args.length);
-            for (let i = 0; i < minLength; i++) {
-                const param = parameters[i];
-                const arg = args[i];
+            // Special case: null can be assigned to 'out' parameters
+            // out parameters are used for output values and can accept null
+            // Example: RayCastBullet(..., out Object hitObject, out vector hitPosition, ...)
+            if (argType === 'null' && param.modifiers && param.modifiers.includes('out')) {
+                continue;
+            }
 
-                const paramType = extractTypeName(param.type);
-                if (!paramType || paramType === 'auto') {
-                    continue;
-                }
+            // Check for special implicit conversions
+            const conversionResult = this.checkImplicitConversion(
+                paramType,
+                argType,
+                arg
+            );
+            if (conversionResult) {
+                results.push(conversionResult);
+                continue;
+            }
 
-                // Special case: void and typename parameters are treated as 'any' - accept any argument type
-                // void: used in functions like Write(void value_out) which accepts any type
-                // typename: used for type-agnostic parameters that can accept any type
-                if (paramType === 'void' || paramType === 'typename') {
-                    continue;
-                }
-
-                const argType = this.resolveExpressionType(arg, context);
-                if (!argType) {
-                    continue;
-                }
-
-                // Special case: null can be assigned to 'out' parameters
-                // out parameters are used for output values and can accept null
-                // Example: RayCastBullet(..., out Object hitObject, out vector hitPosition, ...)
-                if (argType === 'null' && param.modifiers && param.modifiers.includes('out')) {
-                    continue;
-                }
-
-                // Check for special implicit conversions
-                const conversionResult = this.checkImplicitConversion(
-                    paramType,
-                    argType,
-                    arg
+            // Check type compatibility
+            if (!this.isTypeCompatible(paramType, argType, context, arg)) {
+                results.push(
+                    this.createTypeMismatchDiagnostic(
+                        `Argument of type '${argType}' is not assignable to parameter of type '${paramType}'`,
+                        arg,
+                        DiagnosticSeverity.Error
+                    )
                 );
-                if (conversionResult) {
-                    results.push(conversionResult);
-                    continue;
-                }
-
-                // Check type compatibility
-                if (!this.isTypeCompatible(paramType, argType, context, arg)) {
-                    results.push(
-                        this.createTypeMismatchDiagnostic(
-                            `Argument of type '${argType}' is not assignable to parameter of type '${paramType}'`,
-                            arg,
-                            DiagnosticSeverity.Error
-                        )
-                    );
-                }
             }
-
-            // Check if too many arguments provided (only if no variadic parameters)
-            // Note: EnScript may support variadic parameters, but we don't check for that here
-            // This is a simple check that can be enhanced later
-
-        } catch (error) {
-            Logger.error(`FunctionCallTypeMismatchRule: Error checking function call: ${error}`);
         }
+
+        // Check if too many arguments provided (only if no variadic parameters)
+        // Note: EnScript may support variadic parameters, but we don't check for that here
+        // This is a simple check that can be enhanced later
 
         return results;
     }

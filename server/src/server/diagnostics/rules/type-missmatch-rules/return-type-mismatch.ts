@@ -61,80 +61,60 @@ export class ReturnTypeMismatchRule extends TypeMissmatchBase {
     ): Promise<DiagnosticRuleResult[]> {
         const results: DiagnosticRuleResult[] = [];
 
-        try {
-            results.push(...await this.checkReturnStatement(node, context));
-        } catch (error) {
-            Logger.error(`ReturnTypeMismatchRule: Error checking node: ${error}`);
+        const containingFunction = findContainingFunctionOrMethod(node);
+        if (!containingFunction) {
+            Logger.debug('ReturnTypeMismatchRule: Return statement outside of function context');
+            return results;
         }
 
-        return results;
-    }
+        const declaredReturnType = extractTypeName(containingFunction.returnType);
+        if (!declaredReturnType) {
+            return results;
+        }
 
-    private async checkReturnStatement(
-        node: ReturnStatement,
-        context: DiagnosticRuleContext
-    ): Promise<DiagnosticRuleResult[]> {
-        const results: DiagnosticRuleResult[] = [];
-
-        try {
-            const containingFunction = findContainingFunctionOrMethod(node);
-            if (!containingFunction) {
-                Logger.debug('ReturnTypeMismatchRule: Return statement outside of function context');
-                return results;
-            }
-
-            const declaredReturnType = extractTypeName(containingFunction.returnType);
-            if (!declaredReturnType) {
-                return results;
-            }
-
-            if (declaredReturnType === 'void') {
-                if (node.argument) {
-                    results.push(this.createTypeMismatchDiagnostic(
-                        `A 'void' function cannot return a value`,
-                        node.argument,
-                        DiagnosticSeverity.Error
-                    ));
-                }
-                return results;
-            }
-
-            if (!node.argument) {
+        if (declaredReturnType === 'void') {
+            if (node.argument) {
                 results.push(this.createTypeMismatchDiagnostic(
-                    `Function '${containingFunction.name}' expects a return value of type '${declaredReturnType}'`,
-                    node,
-                    DiagnosticSeverity.Error
-                ));
-                return results;
-            }
-
-            const returnedType = this.resolveExpressionType(node.argument, context);
-            if (!returnedType) {
-                Logger.debug(`ReturnTypeMismatchRule: Cannot resolve type of return expression`);
-                return results;
-            }
-
-            // Check for special implicit conversions
-            const conversionResult = this.checkImplicitConversion(
-                declaredReturnType,
-                returnedType,
-                node.argument
-            );
-            if (conversionResult) {
-                results.push(conversionResult);
-                return results;
-            }
-
-            if (!this.isTypeCompatible(declaredReturnType, returnedType, context, node.argument)) {
-                results.push(this.createTypeMismatchDiagnostic(
-                    `Type '${returnedType}' is not assignable to type '${declaredReturnType}'`,
+                    `A 'void' function cannot return a value`,
                     node.argument,
                     DiagnosticSeverity.Error
                 ));
             }
+            return results;
+        }
 
-        } catch (error) {
-            Logger.error(`ReturnTypeMismatchRule: Error checking return statement: ${error}`);
+        if (!node.argument) {
+            results.push(this.createTypeMismatchDiagnostic(
+                `Function '${containingFunction.name}' expects a return value of type '${declaredReturnType}'`,
+                node,
+                DiagnosticSeverity.Error
+            ));
+            return results;
+        }
+
+        const returnedType = this.resolveExpressionType(node.argument, context);
+        if (!returnedType) {
+            Logger.debug(`ReturnTypeMismatchRule: Cannot resolve type of return expression`);
+            return results;
+        }
+
+        // Check for special implicit conversions
+        const conversionResult = this.checkImplicitConversion(
+            declaredReturnType,
+            returnedType,
+            node.argument
+        );
+        if (conversionResult) {
+            results.push(conversionResult);
+            return results;
+        }
+
+        if (!this.isTypeCompatible(declaredReturnType, returnedType, context, node.argument)) {
+            results.push(this.createTypeMismatchDiagnostic(
+                `Type '${returnedType}' is not assignable to type '${declaredReturnType}'`,
+                node.argument,
+                DiagnosticSeverity.Error
+            ));
         }
 
         return results;
