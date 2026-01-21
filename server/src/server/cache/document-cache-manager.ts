@@ -69,6 +69,13 @@ export class DocumentCacheManager implements IDocumentCacheManager {
     
     /** Callbacks to notify when document caches change */
     private cacheChangeCallbacks: Array<(uri: string) => void> = [];
+    
+    /** Batch callbacks to notify when multiple documents change at once */
+    private batchCacheChangeCallbacks: Array<(uris: Set<string>) => void> = [];
+    
+    /** Batching mode - suppress callbacks during bulk operations */
+    private batchMode = false;
+    private batchedUris = new Set<string>();
 
     constructor(@inject(TYPES.IPreprocessorConfig) private preprocessorConfig: IPreprocessorConfig) {
     }
@@ -82,15 +89,63 @@ export class DocumentCacheManager implements IDocumentCacheManager {
     }
 
     /**
+     * Register a callback to be notified when multiple documents change at once (batch mode)
+     * More efficient than individual callbacks for bulk operations
+     */
+    public onBatchCacheChange(callback: (uris: Set<string>) => void): void {
+        this.batchCacheChangeCallbacks.push(callback);
+    }
+
+    /**
      * Notify all registered callbacks that a document cache has changed
      */
     private notifyCacheChange(uri: string): void {
+        if (this.batchMode) {
+            // In batch mode, collect URIs instead of triggering callbacks
+            this.batchedUris.add(uri);
+            return;
+        }
+        
         for (const callback of this.cacheChangeCallbacks) {
             try {
                 callback(uri);
             } catch (error) {
                 Logger.error(`Error in cache change callback: ${error}`);
             }
+        }
+    }
+    
+    /**
+     * Start batch mode - suppress callbacks until endBatch() is called
+     */
+    public startBatch(): void {
+        this.batchMode = true;
+        this.batchedUris.clear();
+    }
+    
+    /**
+     * End batch mode and trigger a single callback with all batched URIs
+     */
+    public endBatch(): void {
+        this.batchMode = false;
+        
+        if (this.batchedUris.size > 0) {
+            Logger.info(`📦 Batch complete: ${this.batchedUris.size} files changed, triggering callbacks...`);
+            
+            // Require batch callbacks for efficient processing
+            if (this.batchCacheChangeCallbacks.length === 0) {
+                throw new Error('Batch mode requires at least one batch cache change callback to be registered. Use onBatchCacheChange() to register a callback.');
+            }
+            
+            for (const callback of this.batchCacheChangeCallbacks) {
+                try {
+                    callback(this.batchedUris);
+                } catch (error) {
+                    Logger.error(`Error in batch cache change callback: ${error}`);
+                }
+            }
+            
+            this.batchedUris.clear();
         }
     }
 

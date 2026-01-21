@@ -82,4 +82,20 @@ export interface IDocumentCacheManager {
      * Register a callback to be notified when document caches change
      */
     onCacheChange(callback: (uri: string) => void): void;
+    
+    /**
+     * Register a callback to be notified when multiple documents change at once (batch mode)
+     * More efficient than individual callbacks for bulk operations
+     */
+    onBatchCacheChange(callback: (uris: Set<string>) => void): void;
+    
+    /**
+     * Start batch mode - suppress callbacks until endBatch()
+     */
+    startBatch(): void;
+    
+    /**
+     * End batch mode and trigger callbacks for all batched changes
+     */
+    endBatch(): void;
 }

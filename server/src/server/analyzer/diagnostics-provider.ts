@@ -277,6 +277,26 @@ export class DiagnosticsProvider implements IDiagnosticsProvider {
                         UndeclaredFunctionRule.logPerformanceStats();
                         // Reset stats for next diagnostic run
                         UndeclaredFunctionRule.resetPerformanceStats();
+
+                        // Log type-resolver performance stats
+                        const typeResolverStats = (this.typeResolver as any).getPerformanceStats();
+                        Logger.debug(`📊 TypeResolver Performance Stats:`);
+                        Logger.debug(`   Cache: ${typeResolverStats.cache.hits} hits, ${typeResolverStats.cache.misses} misses (${typeResolverStats.cache.hitRate} hit rate)`);
+                        Logger.debug(`   Member Lookup Cache: ${typeResolverStats.cache.memberLookupHits} hits, ${typeResolverStats.cache.memberLookupMisses} misses (${typeResolverStats.cache.memberLookupHitRate} hit rate)`);
+                        Logger.debug(`   resolveExpressionType: ${typeResolverStats.resolveExpressionType.totalCalls} calls, ${typeResolverStats.resolveExpressionType.totalTime.toFixed(2)}ms total, ${typeResolverStats.resolveExpressionType.avgTime.toFixed(2)}ms avg`);
+                        
+                        if (typeResolverStats.resolveExpressionType.byKind.length > 0) {
+                            Logger.debug(`   Expression types (top 10 by time):`);
+                            const topExpressions = typeResolverStats.resolveExpressionType.byKind.slice(0, 10);
+                            topExpressions.forEach((expr: any) => {
+                                Logger.debug(`      ${expr.kind}: ${expr.calls} calls, ${expr.totalTime.toFixed(2)}ms total, ${expr.avgTime.toFixed(2)}ms avg`);
+                            });
+                        }
+                        
+                        Logger.debug(`   Operations:`);
+                        Object.entries(typeResolverStats.operations).forEach(([opName, opStats]: [string, any]) => {
+                            Logger.debug(`      ${opName}: ${opStats.calls} calls, ${opStats.totalTime.toFixed(2)}ms total, ${opStats.avgTime.toFixed(2)}ms avg`);
+                        });
                     } catch {
                         // Ignore errors - this is just debug logging
                     }

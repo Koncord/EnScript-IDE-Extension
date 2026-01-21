@@ -85,7 +85,11 @@ export class TypeResolver implements ITypeResolver {
 
     // Performance caches - cleared on invalidation
     private memberLookupCache = new Map<string, string | null>(); // "className:memberName" -> type
-    private inheritanceChainCache = new Map<string, string[]>(); // "className" -> [parent1, parent2, ...]
+    private inheritanceChainCache = new Map<string, {
+        parent: string | null;           // Direct parent class
+        fullChain: string[];             // Full chain: [ChildClass, Parent, Grandparent, ...]
+        children: Set<string>;           // Direct child classes
+    }>(); // "className" -> inheritance info
 
     // Performance tracking
     private perfCounters = {
@@ -95,6 +99,7 @@ export class TypeResolver implements ITypeResolver {
         findContainingClass: { calls: 0, time: 0 },
         searchInClass: { calls: 0, time: 0 },
         searchInFunction: { calls: 0, time: 0 },
+        findAllClassDefinitions: { calls: 0, time: 0 },
         memberLookupCacheHits: 0,
         memberLookupCacheMisses: 0,
     };
@@ -106,6 +111,184 @@ export class TypeResolver implements ITypeResolver {
         @inject(TYPES.IWorkspaceManager) private workspaceManager: IWorkspaceManager
     ) {
         this.docCache = cacheManager.getDocCache();
+
+        // Register callback to warmup caches on document changes
+        this.cacheManager.onCacheChange((uri: string) => {
+            this.warmupCaches(uri);
+        });
+
+        // Register batch callback for efficient bulk warmup
+        this.cacheManager.onBatchCacheChange((uris: Set<string>) => {
+            this.warmupCachesBatch(uris);
+        });
+    }
+
+    /**
+     * Batch warmup for multiple documents - much more efficient than individual warmups
+     * Processes all documents and populates caches in one pass
+     */
+    private warmupCachesBatch(uris: Set<string>): void {
+        Logger.info(`⚡ Batch warming up type resolver caches for ${uris.size} documents...`);
+        const startTime = performance.now();
+
+        // Collect all symbols by name first
+        const classSymbols = new Map<string, { workspace: ClassDeclNode[], external: ClassDeclNode[] }>();
+        const functionSymbols = new Map<string, { workspace: FunctionDeclNode[], external: FunctionDeclNode[] }>();
+        const variableSymbols = new Map<string, { workspace: VarDeclNode[], external: VarDeclNode[] }>();
+        const typedefSymbols = new Map<string, { workspace: TypedefDeclNode[], external: TypedefDeclNode[] }>();
+        const enumSymbols = new Map<string, { workspace: EnumDeclNode[], external: EnumDeclNode[] }>();
+
+        // Process all URIs in batch
+        for (const uri of uris) {
+            const ast = this.docCache.get(uri);
+            if (!ast) continue;
+
+            const isWorkspaceFile = this.workspaceManager.isWorkspaceFile(uri);
+            const isWorkspace = isWorkspaceFile !== false; // Treat null as workspace
+
+            // Scan all top-level nodes and collect symbols
+            for (const node of ast.body) {
+                if (isClass(node) && node.name) {
+                    // Build inheritance tree
+                    this.updateInheritanceTree(node);
+
+                    // Collect class symbol
+                    if (!classSymbols.has(node.name)) {
+                        classSymbols.set(node.name, { workspace: [], external: [] });
+                    }
+                    const collection = classSymbols.get(node.name)!;
+                    if (isWorkspace) {
+                        collection.workspace.push(node);
+                    } else {
+                        collection.external.push(node);
+                    }
+                } else if (isFunction(node) && node.name) {
+                    if (!functionSymbols.has(node.name)) {
+                        functionSymbols.set(node.name, { workspace: [], external: [] });
+                    }
+                    const collection = functionSymbols.get(node.name)!;
+                    if (isWorkspace) {
+                        collection.workspace.push(node);
+                    } else {
+                        collection.external.push(node);
+                    }
+                } else if (isVarDecl(node) && node.name) {
+                    if (!variableSymbols.has(node.name)) {
+                        variableSymbols.set(node.name, { workspace: [], external: [] });
+                    }
+                    const collection = variableSymbols.get(node.name)!;
+                    if (isWorkspace) {
+                        collection.workspace.push(node);
+                    } else {
+                        collection.external.push(node);
+                    }
+                } else if (isTypedef(node) && node.name) {
+                    if (!typedefSymbols.has(node.name)) {
+                        typedefSymbols.set(node.name, { workspace: [], external: [] });
+                    }
+                    const collection = typedefSymbols.get(node.name)!;
+                    if (isWorkspace) {
+                        collection.workspace.push(node);
+                    } else {
+                        collection.external.push(node);
+                    }
+                } else if (isEnum(node) && node.name) {
+                    if (!enumSymbols.has(node.name)) {
+                        enumSymbols.set(node.name, { workspace: [], external: [] });
+                    }
+                    const collection = enumSymbols.get(node.name)!;
+                    if (isWorkspace) {
+                        collection.workspace.push(node);
+                    } else {
+                        collection.external.push(node);
+                    }
+                }
+            }
+        }
+
+        // Now populate caches with collected symbols - one write per symbol name
+        for (const [name, symbols] of classSymbols) {
+            this.symbolCache.setClassCache(name, symbols.workspace, symbols.external);
+        }
+        for (const [name, symbols] of functionSymbols) {
+            this.symbolCache.setFunctionCache(name, symbols.workspace, symbols.external);
+        }
+        for (const [name, symbols] of variableSymbols) {
+            this.symbolCache.setVariableCache(name, symbols.workspace, symbols.external);
+        }
+        for (const [name, symbols] of typedefSymbols) {
+            this.symbolCache.setTypedefCache(name, symbols.workspace, symbols.external);
+        }
+        for (const [name, symbols] of enumSymbols) {
+            this.symbolCache.setEnumCache(name, symbols.workspace, symbols.external);
+        }
+
+        const duration = performance.now() - startTime;
+        Logger.info(`✅ Batch warmup complete: ${classSymbols.size} classes, ${functionSymbols.size} functions, ${variableSymbols.size} variables, ${typedefSymbols.size} typedefs, ${enumSymbols.size} enums (${duration.toFixed(2)}ms)`);
+    }
+
+    private warmupCaches(uri: string): void {
+        Logger.debug(`⚡ Warming up type resolver caches for document: ${uri}`);
+        const ast = this.docCache.get(uri);
+        if (!ast) return;
+
+        const isWorkspaceFile = this.workspaceManager.isWorkspaceFile(uri);
+        const isWorkspace = isWorkspaceFile !== false; // Treat null as workspace
+
+        // Build inheritance tree and populate symbol caches in a single pass
+        for (const node of ast.body) {
+            if (isClass(node) && node.name) {
+                // Build inheritance tree
+                this.updateInheritanceTree(node);
+
+                // Populate class symbol cache
+                this.symbolCache.addClassToCache(node.name, node, isWorkspace);
+            } else if (isFunction(node) && node.name) {
+                // Populate function cache
+                const cache = this.symbolCache.getFunctionCache(node.name);
+                const workspace = cache.workspace || [];
+                const external = cache.external || [];
+                if (isWorkspace) {
+                    workspace.push(node);
+                } else {
+                    external.push(node);
+                }
+                this.symbolCache.setFunctionCache(node.name, workspace, external);
+            } else if (isVarDecl(node) && node.name) {
+                // Populate variable cache
+                const cache = this.symbolCache.getVariableCache(node.name);
+                const workspace = cache.workspace || [];
+                const external = cache.external || [];
+                if (isWorkspace) {
+                    workspace.push(node);
+                } else {
+                    external.push(node);
+                }
+                this.symbolCache.setVariableCache(node.name, workspace, external);
+            } else if (isTypedef(node) && node.name) {
+                // Populate typedef cache
+                const cache = this.symbolCache.getTypedefCache(node.name);
+                const workspace = cache.workspace || [];
+                const external = cache.external || [];
+                if (isWorkspace) {
+                    workspace.push(node);
+                } else {
+                    external.push(node);
+                }
+                this.symbolCache.setTypedefCache(node.name, workspace, external);
+            } else if (isEnum(node) && node.name) {
+                // Populate enum cache
+                const cache = this.symbolCache.getEnumCache(node.name);
+                const workspace = cache.workspace || [];
+                const external = cache.external || [];
+                if (isWorkspace) {
+                    workspace.push(node);
+                } else {
+                    external.push(node);
+                }
+                this.symbolCache.setEnumCache(node.name, workspace, external);
+            }
+        }
     }
 
     /**
@@ -168,6 +351,13 @@ export class TypeResolver implements ITypeResolver {
                     avgTime: this.perfCounters.searchInFunction.calls > 0
                         ? this.perfCounters.searchInFunction.time / this.perfCounters.searchInFunction.calls
                         : 0
+                },
+                findAllClassDefinitions: {
+                    calls: this.perfCounters.findAllClassDefinitions.calls,
+                    totalTime: this.perfCounters.findAllClassDefinitions.time,
+                    avgTime: this.perfCounters.findAllClassDefinitions.calls > 0
+                        ? this.perfCounters.findAllClassDefinitions.time / this.perfCounters.findAllClassDefinitions.calls
+                        : 0
                 }
             }
         };
@@ -179,6 +369,7 @@ export class TypeResolver implements ITypeResolver {
             this.perfCounters.findContainingClass = { calls: 0, time: 0 };
             this.perfCounters.searchInClass = { calls: 0, time: 0 };
             this.perfCounters.searchInFunction = { calls: 0, time: 0 };
+            this.perfCounters.findAllClassDefinitions = { calls: 0, time: 0 };
             this.perfCounters.memberLookupCacheHits = 0;
             this.perfCounters.memberLookupCacheMisses = 0;
         }
@@ -310,6 +501,121 @@ export class TypeResolver implements ITypeResolver {
     }
 
     /**
+     * Update inheritance tree with a class node
+     */
+    private updateInheritanceTree(classNode: ClassDeclNode): void {
+        const className = classNode.name;
+        if (!className) return;
+
+        // Get or create entry for this class
+        let entry = this.inheritanceChainCache.get(className);
+        if (!entry) {
+            entry = {
+                parent: null,
+                fullChain: [className],
+                children: new Set<string>()
+            };
+            this.inheritanceChainCache.set(className, entry);
+        }
+
+        // Update parent relationship
+        const parentName = classNode.baseClass ? extractTypeName(classNode.baseClass) : null;
+        entry.parent = parentName;
+
+        // Update parent's children set
+        if (parentName) {
+            let parentEntry = this.inheritanceChainCache.get(parentName);
+            if (!parentEntry) {
+                parentEntry = {
+                    parent: null,
+                    fullChain: [parentName],
+                    children: new Set<string>()
+                };
+                this.inheritanceChainCache.set(parentName, parentEntry);
+            }
+            parentEntry.children.add(className);
+        }
+
+        // Always build full chain immediately (eager caching)
+        this.buildFullChain(className);
+
+        // Rebuild chains for all descendants since their chains may have changed
+        this.rebuildDescendantChains(className);
+    }
+
+    /**
+     * Recursively rebuild inheritance chains for all descendants
+     */
+    private rebuildDescendantChains(className: string): void {
+        const entry = this.inheritanceChainCache.get(className);
+        if (!entry) return;
+
+        for (const child of entry.children) {
+            this.buildFullChain(child);
+            this.rebuildDescendantChains(child);
+        }
+    }
+
+    /**
+     * Recursively build full inheritance chain for a class
+     */
+    private buildFullChain(className: string): void {
+        const entry = this.inheritanceChainCache.get(className);
+        if (!entry) return;
+
+        const chain = [className];
+        let current = entry.parent;
+        const visited = new Set<string>([className]);
+
+        while (current && !visited.has(current)) {
+            chain.push(current);
+            visited.add(current);
+            const currentEntry = this.inheritanceChainCache.get(current);
+            current = currentEntry?.parent ?? null;
+        }
+
+        entry.fullChain = chain;
+    }
+
+    /**
+     * Get full inheritance chain for a class (from cache if available)
+     */
+    private getInheritanceChain(className: string): string[] {
+        const cachedEntry = this.inheritanceChainCache.get(className);
+        if (cachedEntry && cachedEntry.fullChain.length > 1) {
+            return cachedEntry.fullChain;
+        }
+
+        // Not in cache, build it on demand
+        const chain = [className];
+        const allClassDefs = this.findAllClassDefinitions(className);
+        if (allClassDefs.length === 0) return chain;
+
+        const visited = new Set<string>([className]);
+        let currentDefs = allClassDefs;
+
+        while (currentDefs.length > 0) {
+            const baseClassName = currentDefs[0].baseClass ? extractTypeName(currentDefs[0].baseClass) : null;
+            if (!baseClassName || visited.has(baseClassName)) break;
+
+            chain.push(baseClassName);
+            visited.add(baseClassName);
+            currentDefs = this.findAllClassDefinitions(baseClassName);
+        }
+
+        // Cache the result
+        const existingEntry = this.inheritanceChainCache.get(className);
+        if (!existingEntry) {
+            const newEntry = { parent: chain[1] ?? null, fullChain: chain, children: new Set<string>() };
+            this.inheritanceChainCache.set(className, newEntry);
+        } else {
+            existingEntry.fullChain = chain;
+        }
+
+        return chain;
+    }
+
+    /**
      * Attempts to resolve the type of an object/variable using new AST format
      */
     resolveObjectType(objectName: string, doc: TextDocument, position?: Position): string | null {
@@ -339,7 +645,7 @@ export class TypeResolver implements ITypeResolver {
         }
 
         this.perfCounters.cacheMisses++;
-        Logger.debug(`   → Not in cache, resolving...`);
+        Logger.debug(`   → ${objectName} not in cache, resolving...`);
 
         let result: string | null = null;
 
@@ -532,8 +838,7 @@ export class TypeResolver implements ITypeResolver {
 
         if (!ast) {
             ast = this.cacheManager.ensureDocumentParsed(doc);
-            // Invalidate symbol caches when a new document is added
-            this.invalidateCachesForDocument(uri);
+            // Note: Don't invalidate here - warmupCaches callback already built fresh caches
         }
 
         return ast;
@@ -1263,29 +1568,36 @@ export class TypeResolver implements ITypeResolver {
 
         this.perfCounters.memberLookupCacheMisses++;
 
-        // Find and merge all class definitions for the base type
-        const classDefinitions = this.findAllClassDefinitions(className);
-        const classDecl = mergeClassDefinitions(classDefinitions);
-        if (!classDecl) {
-            this.memberLookupCache.set(cacheKey, null);
-            return null;
-        }
+        // Use cached inheritance chain instead of findAllClassDefinitions recursion
+        const inheritanceChain = this.getInheritanceChain(className);
 
-        // Look for the member in the merged class (includes inherited members)
-        for (const member of classDecl.members || []) {
-            if (member.name === memberName) {
-                let memberType: string | null = null;
-                if (isVarDecl(member)) {
-                    memberType = getTypeName(member.type);
-                } else if (isMethod(member)) {
-                    memberType = getTypeName(member.returnType);
-                }
+        // Search through the inheritance chain for the member
+        for (const ancestorName of inheritanceChain) {
+            const classDefinitions = this.findAllClassDefinitions(ancestorName);
+            const classDecl = mergeClassDefinitions(classDefinitions);
+            if (!classDecl) {
+                continue;
+            }
 
-                if (memberType) {
-                    // Apply generic substitution if needed
-                    const result = this.substituteGenericTypes(memberType, classDecl, genericArgs);
-                    this.memberLookupCache.set(cacheKey, result);
-                    return result;
+            // Look for the member in this class
+            for (const member of classDecl.members || []) {
+                if (member.name === memberName) {
+                    let memberType: string | null = null;
+                    if (isVarDecl(member)) {
+                        memberType = getTypeName(member.type);
+                    } else if (isMethod(member)) {
+                        memberType = getTypeName(member.returnType);
+                    }
+
+                    if (memberType) {
+                        // Apply generic substitution based on the original class
+                        const originalClassDef = mergeClassDefinitions(this.findAllClassDefinitions(className));
+                        const result = originalClassDef
+                            ? this.substituteGenericTypes(memberType, originalClassDef, genericArgs)
+                            : memberType;
+                        this.memberLookupCache.set(cacheKey, result);
+                        return result;
+                    }
                 }
             }
         }
@@ -2297,6 +2609,8 @@ export class TypeResolver implements ITypeResolver {
      * Also resolves typedefs to their underlying class type
      */
     findAllClassDefinitions(className: string): ClassDeclNode[] {
+        const startTime = performance.now();
+        this.perfCounters.findAllClassDefinitions.calls++;
         // First try direct class lookup
         const directClasses = this.findSymbols<ClassDeclNode>(
             className,
@@ -2307,6 +2621,7 @@ export class TypeResolver implements ITypeResolver {
         );
 
         if (directClasses.length > 0) {
+            this.perfCounters.findAllClassDefinitions.time += performance.now() - startTime;
             return directClasses;
         }
 
@@ -2316,9 +2631,11 @@ export class TypeResolver implements ITypeResolver {
             if (this.enableDetailedLogging) {
                 Logger.debug(`🔍 Resolved typedef "${className}" -> "${resolvedClassName}"`);
             }
+            this.perfCounters.findAllClassDefinitions.time += performance.now() - startTime;
             return this.findAllClassDefinitions(resolvedClassName);
         }
 
+        this.perfCounters.findAllClassDefinitions.time += performance.now() - startTime;
         return [];
     }
 

@@ -171,6 +171,9 @@ export class IndexerService implements IIndexerService {
             total: allFiles.length
         });
 
+        // Start batch mode to suppress cache callbacks during bulk indexing
+        this.cacheManager.startBatch();
+
         for (let i = 0; i < allFiles.length; i++) {
             const filePath = allFiles[i];
             try {
@@ -198,6 +201,15 @@ export class IndexerService implements IIndexerService {
         }
 
         Logger.info(`✅ Finished processing loop - processed ${allFiles.length} files`);
+
+        this.notificationService.sendIndexingNotification({
+            stage: 'processing',
+            message: `Finalizing indexing of ${allFiles.length} files...`,
+            progress: allFiles.length,
+            total: allFiles.length
+        });
+
+        this.cacheManager.endBatch();
 
         this.notificationService.sendIndexingNotification({
             stage: 'complete',
