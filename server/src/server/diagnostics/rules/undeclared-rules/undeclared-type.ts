@@ -2,11 +2,11 @@ import {
     DiagnosticRuleContext,
     DiagnosticRuleConfig,
     DiagnosticRuleResult
-} from '../rules';
-import { ASTNode, VarDeclNode, ParameterDeclNode, TypeNode } from '../../ast';
-import { Logger } from '../../../util/logger';
+} from '../../rules';
+import { ASTNode, VarDeclNode, ParameterDeclNode, TypeNode } from '../../../ast';
+import { Logger } from '../../../../util/logger';
 import { UndeclaredEntityRule } from './undeclared-entity-base';
-import { isVarDecl, isParameterDecl, isTypeReference } from '../../../util';
+import { isVarDecl, isParameterDecl, isTypeReference } from '../../../../util';
 
 /**
  * Rule for detecting usage of undeclared types in variable declarations and function parameters

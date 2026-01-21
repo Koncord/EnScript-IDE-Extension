@@ -2,13 +2,13 @@ import {
     DiagnosticRuleContext,
     DiagnosticRuleConfig,
     DiagnosticRuleResult
-} from '../rules';
-import { ASTNode, ClassDeclNode, FunctionDeclNode, MethodDeclNode, VarDeclNode } from '../../ast';
-import { DeclarationStatement, BlockStatement, ForEachStatement, ForStatement, SwitchStatement, Identifier, MemberExpression, CallExpression } from '../../ast/node-types';
+} from '../../rules';
+import { ASTNode, ClassDeclNode, FunctionDeclNode, MethodDeclNode, VarDeclNode } from '../../../ast';
+import { DeclarationStatement, BlockStatement, ForEachStatement, ForStatement, SwitchStatement, Identifier, MemberExpression, CallExpression } from '../../../ast/node-types';
 import { UndeclaredEntityRule } from './undeclared-entity-base';
-import { isFunction, isMethod, isClass, isVarDecl } from '../../../util';
-import { BaseASTVisitor } from '../../ast/ast-visitor';
-import { findMemberInClassWithInheritance, mergeClassDefinitions } from '../../util/ast-class-utils';
+import { isFunction, isMethod, isClass, isVarDecl } from '../../../../util';
+import { BaseASTVisitor } from '../../../ast/ast-visitor';
+import { findMemberInClassWithInheritance, mergeClassDefinitions } from '../../../util/ast-class-utils';
 
 /**
  * Rule for detecting usage of undeclared variables

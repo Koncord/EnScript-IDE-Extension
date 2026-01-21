@@ -1,11 +1,11 @@
 export { UnusedTypedefRule } from './unused-typedef';
-export { UndeclaredFunctionRule } from './undeclared-function';
-export { UndeclaredMethodRule } from './undeclared-method';
-export { UndeclaredVariableRule } from './undeclared-variable';
-export { UndeclaredTypeRule } from './undeclared-type';
-export { UndeclaredEnumMemberRule } from './undeclared-enum-member';
-export { UndeclaredBaseClassRule } from './undeclared-base-class';
-export { UndeclaredEntityRule } from './undeclared-entity-base';
+export { UndeclaredFunctionRule } from './undeclared-rules/undeclared-function';
+export { UndeclaredMethodRule } from './undeclared-rules/undeclared-method';
+export { UndeclaredVariableRule } from './undeclared-rules/undeclared-variable';
+export { UndeclaredTypeRule } from './undeclared-rules/undeclared-type';
+export { UndeclaredEnumMemberRule } from './undeclared-rules/undeclared-enum-member';
+export { UndeclaredBaseClassRule } from './undeclared-rules/undeclared-base-class';
+export { UndeclaredEntityRule } from './undeclared-rules/undeclared-entity-base';
 export { StaticInstanceMismatchRule } from './static-instance-mismatch';
 export { AssignmentTypeMismatchRule } from './type-missmatch-rules/assignment-type-mismatch';
 export { VariableDeclarationTypeMismatchRule } from './type-missmatch-rules/variable-declaration-type-mismatch';
@@ -20,12 +20,12 @@ export { OverrideAccessModifierMismatchRule } from './override-access-modifier-m
 
 import { DiagnosticRule } from '../rules';
 import { UnusedTypedefRule } from './unused-typedef';
-import { UndeclaredFunctionRule } from './undeclared-function';
-import { UndeclaredMethodRule } from './undeclared-method';
-import { UndeclaredVariableRule } from './undeclared-variable';
-import { UndeclaredTypeRule } from './undeclared-type';
-import { UndeclaredEnumMemberRule } from './undeclared-enum-member';
-import { UndeclaredBaseClassRule } from './undeclared-base-class';
+import { UndeclaredFunctionRule } from './undeclared-rules/undeclared-function';
+import { UndeclaredMethodRule } from './undeclared-rules/undeclared-method';
+import { UndeclaredVariableRule } from './undeclared-rules/undeclared-variable';
+import { UndeclaredTypeRule } from './undeclared-rules/undeclared-type';
+import { UndeclaredEnumMemberRule } from './undeclared-rules/undeclared-enum-member';
+import { UndeclaredBaseClassRule } from './undeclared-rules/undeclared-base-class';
 import { StaticInstanceMismatchRule } from './static-instance-mismatch';
 import { AssignmentTypeMismatchRule } from './type-missmatch-rules/assignment-type-mismatch';
 import { VariableDeclarationTypeMismatchRule } from './type-missmatch-rules/variable-declaration-type-mismatch';

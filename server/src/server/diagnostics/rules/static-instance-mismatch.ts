@@ -6,7 +6,7 @@ import {
 import { DiagnosticSeverity } from 'vscode-languageserver';
 import { ASTNode } from '../../ast';
 import { Logger } from '../../../util/logger';
-import { UndeclaredEntityRule } from './undeclared-entity-base';
+import { UndeclaredEntityRule } from './undeclared-rules/undeclared-entity-base';
 import { isMemberExpression } from '../../../util';
 import { findMemberInClassHierarchy, SymbolResolutionContext } from '../../util/symbol-resolution-utils';
 

@@ -4,7 +4,7 @@ import {
     DiagnosticRuleResult
 } from '../rules';
 import { ASTNode, ClassDeclNode, MethodDeclNode } from '../../ast';
-import { UndeclaredEntityRule } from './undeclared-entity-base';
+import { UndeclaredEntityRule } from './undeclared-rules/undeclared-entity-base';
 import { isMethod } from '../../../util';
 import { DiagnosticSeverity } from 'vscode-languageserver';
 import { findMemberInClassWithInheritance } from '../../util/ast-class-utils';

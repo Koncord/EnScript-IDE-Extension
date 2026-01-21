@@ -3,11 +3,11 @@ import {
     DiagnosticRuleConfig,
     DiagnosticRuleResult,
     DiagnosticSuggestion
-} from '../rules';
-import { ASTNode } from '../../ast';
-import { Logger } from '../../../util/logger';
+} from '../../rules';
+import { ASTNode } from '../../../ast';
+import { Logger } from '../../../../util/logger';
 import { UndeclaredEntityRule } from './undeclared-entity-base';
-import { isMemberExpression, isIdentifier, isEnum } from '../../../util';
+import { isMemberExpression, isIdentifier, isEnum } from '../../../../util';
 
 interface EnumMemberDiagnosticData {
     enumName: string;

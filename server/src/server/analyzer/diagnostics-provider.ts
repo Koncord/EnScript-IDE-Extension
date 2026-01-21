@@ -273,7 +273,7 @@ export class DiagnosticsProvider implements IDiagnosticsProvider {
                     // Log detailed UndeclaredFunction performance stats if available
                     try {
                         // Import the rule to access its performance logging
-                        const { UndeclaredFunctionRule } = await import('../diagnostics/rules/undeclared-function');
+                        const { UndeclaredFunctionRule } = await import('../diagnostics/rules/undeclared-rules/undeclared-function');
                         UndeclaredFunctionRule.logPerformanceStats();
                         // Reset stats for next diagnostic run
                         UndeclaredFunctionRule.resetPerformanceStats();

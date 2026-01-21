@@ -2,11 +2,11 @@ import {
     DiagnosticRuleContext,
     DiagnosticRuleConfig,
     DiagnosticRuleResult
-} from '../rules';
-import { ASTNode, ClassDeclNode } from '../../ast';
-import { Logger } from '../../../util/logger';
+} from '../../rules';
+import { ASTNode, ClassDeclNode } from '../../../ast';
+import { Logger } from '../../../../util/logger';
 import { UndeclaredEntityRule } from './undeclared-entity-base';
-import { isClass, isTypeReference } from '../../../util';
+import { isClass, isTypeReference } from '../../../../util';
 
 /**
  * Rule for detecting undeclared base classes in class inheritance

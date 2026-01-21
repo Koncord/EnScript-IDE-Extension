@@ -2,11 +2,11 @@ import {
     DiagnosticRuleContext,
     DiagnosticRuleConfig,
     DiagnosticRuleResult
-} from '../rules';
-import { ASTNode } from '../../ast';
+} from '../../rules';
+import { ASTNode } from '../../../ast';
 import { UndeclaredEntityRule } from './undeclared-entity-base';
-import { Logger } from '../../../util/logger';
-import { isMemberExpression } from '../../../util';
+import { Logger } from '../../../../util/logger';
+import { isMemberExpression } from '../../../../util';
 
 /**
  * Rule for detecting undeclared member access (methods and fields).

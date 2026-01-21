@@ -5,7 +5,7 @@ import {
 } from '../rules';
 import { ASTNode, ClassDeclNode, FunctionDeclNode, MethodDeclNode, VarDeclNode } from '../../ast';
 import { DeclarationStatement, ForEachStatement, ForStatement } from '../../ast/node-types';
-import { UndeclaredEntityRule } from './undeclared-entity-base';
+import { UndeclaredEntityRule } from './undeclared-rules/undeclared-entity-base';
 import { isFunction, isMethod, isVarDecl } from '../../../util';
 import { BaseASTVisitor } from '../../ast/ast-visitor';
 import { DiagnosticSeverity } from 'vscode-languageserver';

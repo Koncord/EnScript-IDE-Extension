@@ -2,13 +2,13 @@ import {
     DiagnosticRuleContext,
     DiagnosticRuleConfig,
     DiagnosticRuleResult
-} from '../rules';
-import { ASTNode, CallExpression, ClassDeclNode, Declaration } from '../../ast';
+} from '../../rules';
+import { ASTNode, CallExpression, ClassDeclNode, Declaration } from '../../../ast';
 import { UndeclaredEntityRule } from './undeclared-entity-base';
-import { findSymbolInFile } from '../../analyzer/symbol-lookup';
-import { Logger } from '../../../util/logger';
-import { isFunction, isIdentifier, isMemberExpression, isCallExpression } from '../../../util';
-import { PerformanceTimer } from './PerformanceTimer';
+import { findSymbolInFile } from '../../../analyzer/symbol-lookup';
+import { Logger } from '../../../../util/logger';
+import { isFunction, isIdentifier, isMemberExpression, isCallExpression } from '../../../../util';
+import { PerformanceTimer } from '../PerformanceTimer';
 
 /**
  * Rule for detecting undeclared function calls

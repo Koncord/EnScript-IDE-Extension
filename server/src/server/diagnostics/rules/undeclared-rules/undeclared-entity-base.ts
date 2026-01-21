@@ -4,16 +4,16 @@ import {
     DiagnosticRuleContext,
     DiagnosticRuleConfig,
     DiagnosticRuleResult
-} from '../rules';
+} from '../../rules';
 import { DiagnosticSeverity } from 'vscode-languageserver';
-import { FunctionDeclNode, VarDeclNode, ClassDeclNode, ASTNode, MethodDeclNode, Declaration } from '../../ast';
-import { Logger } from '../../../util/logger';
-import { isClass, isEnum, isTypedef, isCallExpression, isMemberExpression, isStaticDeclaration } from '../../util/ast-class-utils';
+import { FunctionDeclNode, VarDeclNode, ClassDeclNode, ASTNode, MethodDeclNode, Declaration } from '../../../ast';
+import { Logger } from '../../../../util/logger';
+import { isClass, isEnum, isTypedef, isCallExpression, isMemberExpression, isStaticDeclaration } from '../../../util/ast-class-utils';
 import {
     isMethod,
     isVarDecl,
     isIdentifier
-} from '../../util/ast-class-utils';
+} from '../../../util/ast-class-utils';
 import {
     isLanguageKeyword as isLanguageKeywordUtil,
     isEnumName as isEnumNameUtil,
@@ -27,8 +27,8 @@ import {
     resolveMethodReturnType as resolveMethodReturnTypeUtil,
     findContainingClass as findContainingClassUtil,
     SymbolResolutionContext
-} from '../../util/symbol-resolution-utils';
-import { isBuiltInType } from '../../util/type-utils';
+} from '../../../util/symbol-resolution-utils';
+import { isBuiltInType } from '../../../util/type-utils';
 
 /**
  * Base class for all "undeclared entity" diagnostic rules.
