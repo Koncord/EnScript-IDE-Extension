@@ -3,9 +3,9 @@ import {
     DiagnosticCategory,
     DiagnosticRuleContext,
     DiagnosticRuleConfig,
-    DiagnosticRuleResult
+    DiagnosticRuleResult,
+    DiagnosticSeverity
 } from '../rules';
-import { DiagnosticSeverity } from 'vscode-languageserver';
 import { ASTNode, TypedefDeclNode, TypeNode } from '../../ast';
 import { isTypedef, isVarDecl, isParameterDecl } from '../../../util';
 

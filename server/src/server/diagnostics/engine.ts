@@ -1,10 +1,11 @@
 import { TextDocument } from 'vscode-languageserver-textdocument';
-import { Diagnostic, DiagnosticSeverity } from 'vscode-languageserver';
+import { Diagnostic } from 'vscode-languageserver';
 import {
     DiagnosticRule,
     DiagnosticRuleContext,
     DiagnosticRuleResult,
-    DiagnosticCategory
+    DiagnosticCategory,
+    DiagnosticSeverity
 } from './rules';
 import { DiagnosticRuleRegistry, globalDiagnosticRegistry } from './registry';
 import { ASTNode, FileNode, Declaration } from '../ast';
@@ -517,4 +518,3 @@ export class DiagnosticEngine implements IDiagnosticEngine {
         };
     }
 }
-

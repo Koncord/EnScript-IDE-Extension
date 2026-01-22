@@ -2,9 +2,9 @@ import {
     DiagnosticRuleContext,
     DiagnosticRuleConfig,
     DiagnosticRuleResult,
-    DiagnosticCategory
+    DiagnosticCategory,
+    DiagnosticSeverity
 } from '../../rules';
-import { DiagnosticSeverity } from 'vscode-languageserver';
 import { ASTNode } from '../../../ast';
 import { isBinaryExpression } from '../../../util/ast-class-utils';
 import { BinaryExpression } from '../../../ast/node-types';

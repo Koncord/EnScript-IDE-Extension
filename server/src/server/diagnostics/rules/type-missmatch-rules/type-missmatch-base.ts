@@ -1,6 +1,11 @@
-import { DiagnosticSeverity } from 'vscode-languageserver';
 import { ASTNode, Expression, Literal, CallExpression, FunctionDeclNode, MethodDeclNode } from '../../../ast';
-import { BaseDiagnosticRule, DiagnosticCategory, DiagnosticRuleContext, DiagnosticRuleResult } from '../../rules';
+import {
+    BaseDiagnosticRule,
+    DiagnosticCategory,
+    DiagnosticRuleContext,
+    DiagnosticRuleResult,
+    DiagnosticSeverity
+} from '../../rules';
 import { Logger } from '../../../../util/logger';
 import {
     extractTypeName,

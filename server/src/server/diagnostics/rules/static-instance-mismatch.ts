@@ -1,9 +1,9 @@
 import {
     DiagnosticRuleContext,
     DiagnosticRuleConfig,
-    DiagnosticRuleResult
+    DiagnosticRuleResult,
+    DiagnosticSeverity
 } from '../rules';
-import { DiagnosticSeverity } from 'vscode-languageserver';
 import { ASTNode } from '../../ast';
 import { Logger } from '../../../util/logger';
 import { UndeclaredEntityRule } from './undeclared-rules/undeclared-entity-base';

@@ -2,9 +2,9 @@ import {
     DiagnosticRuleContext,
     DiagnosticRuleConfig,
     DiagnosticRuleResult,
-    DiagnosticCategory
+    DiagnosticCategory,
+    DiagnosticSeverity
 } from '../../rules';
-import { DiagnosticSeverity } from 'vscode-languageserver';
 import { ASTNode, CallExpression } from '../../../ast';
 import { isCallExpression } from '../../../util/ast-class-utils';
 import { extractTypeName } from '../../../util/symbol-resolution-utils';

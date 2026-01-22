@@ -3,9 +3,9 @@ import {
     DiagnosticCategory,
     DiagnosticRuleContext,
     DiagnosticRuleConfig,
-    DiagnosticRuleResult
+    DiagnosticRuleResult,
+    DiagnosticSeverity
 } from '../../rules';
-import { DiagnosticSeverity } from 'vscode-languageserver';
 import { FunctionDeclNode, VarDeclNode, ClassDeclNode, ASTNode, MethodDeclNode, Declaration } from '../../../ast';
 import { Logger } from '../../../../util/logger';
 import { isClass, isEnum, isTypedef, isCallExpression, isMemberExpression, isStaticDeclaration } from '../../../util/ast-class-utils';

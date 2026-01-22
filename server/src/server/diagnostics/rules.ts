@@ -1,5 +1,5 @@
 import { TextDocument } from 'vscode-languageserver-textdocument';
-import { DiagnosticRelatedInformation, DiagnosticTag, DiagnosticSeverity } from 'vscode-languageserver';
+import { DiagnosticRelatedInformation, DiagnosticTag } from 'vscode-languageserver';
 import { ASTNode, FileNode, ClassDeclNode } from '../ast';
 import { ITypeResolver } from '../types/type-resolver-interfaces';
 import { SuppressionMap } from './suppression';
@@ -15,6 +15,28 @@ export enum DiagnosticCategory {
     PERFORMANCE = 'performance',
     SECURITY = 'security',
     BEST_PRACTICE = 'bestPractice'
+}
+
+/**
+ * Diagnostic severity levels
+ */
+export enum DiagnosticSeverity {
+    /**
+     * Reports an error.
+     */
+    Error = 1,
+    /**
+     * Reports a warning.
+     */
+    Warning = 2,
+    /**
+     * Reports an information.
+     */
+    Information = 3,
+    /**
+     * Reports a hint.
+     */
+    Hint = 4
 }
 
 /**

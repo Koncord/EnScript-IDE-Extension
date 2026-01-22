@@ -1,5 +1,4 @@
-import { DiagnosticSeverity } from 'vscode-languageserver';
-import { DiagnosticCategory, DiagnosticRuleConfig } from './rules';
+import { DiagnosticCategory, DiagnosticRuleConfig, DiagnosticSeverity } from './rules';
 import { Logger } from '../../util/logger';
 
 /**

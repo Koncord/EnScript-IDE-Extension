@@ -1,8 +1,8 @@
-import { Diagnostic, DiagnosticSeverity } from 'vscode-languageserver';
+import { Diagnostic } from 'vscode-languageserver';
 import { Logger } from '../../../util';
 import { ASTNode } from '../../ast';
 import { DiagnosticRuleRegistry } from '../registry';
-import { DiagnosticRule, DiagnosticRuleContext, DiagnosticRuleResult } from '../rules';
+import { DiagnosticRule, DiagnosticRuleContext, DiagnosticRuleResult, DiagnosticSeverity } from '../rules';
 import { isDiagnosticSuppressed } from '../suppression';
 
 /**
