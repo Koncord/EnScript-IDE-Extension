@@ -36,7 +36,7 @@
     "dependencies": {
         "bis-toolkit": "^1.0.2",
         "diff-match-patch": "^1.0.5",
-        "fast-xml-parser": "^5.3.3",
+        "fast-xml-parser": "^5.3.5",
         "inversify": "^7.10.6",
         "marked": "^17.0.1",
         "reflect-metadata": "^0.2.2",
